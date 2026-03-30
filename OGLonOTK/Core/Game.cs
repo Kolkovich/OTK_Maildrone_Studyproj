@@ -24,17 +24,17 @@ namespace OGLonOTK.Core
 
             float[] vertices =
             {
-                // positions
-                -0.5f, -0.5f, 0.0f, // bottom-left
-                 0.5f, -0.5f, 0.0f, // bottom-right
-                 0.5f,  0.5f, 0.0f, // top-right
-                -0.5f,  0.5f, 0.0f  // top-left
+                // position             // color
+                -0.5f, -0.5f, 0.0f,     1.0f, 0.0f, 0.0f, // bottom-left, red
+                0.5f, -0.5f, 0.0f,     0.9f, 0.0f, 0.1f, // bottom-right,
+                0.5f,  0.5f, 0.0f,     0.7f, 0.1f, 0.2f, // top-right,
+               -0.5f,  0.5f, 0.0f,     0.9f, 0.0f, 0.1f  // top-left,
             };
 
             uint[] indices =
             {
-                0, 1, 2, // first triangle
-                2, 3, 0  // second triangle
+                0, 1, 2,
+                2, 3, 0
             };
 
             _shader = new Shader("Shaders/shader.vert", "Shaders/shader.frag");

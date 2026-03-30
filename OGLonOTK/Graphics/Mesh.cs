@@ -38,16 +38,25 @@ namespace OGLonOTK.Graphics
                 _indices,
                 BufferUsageHint.StaticDraw);
 
+            // Атрибут 0: позиция (x, y, z)
             GL.VertexAttribPointer(
                 index: 0,
                 size: 3,
                 type: VertexAttribPointerType.Float,
                 normalized: false,
-                stride: 3 * sizeof(float),
+                stride: 6 * sizeof(float),
                 offset: 0);
-
-
             GL.EnableVertexAttribArray(0);
+
+            // Атрибут 1: цвет (r, g, b)
+            GL.VertexAttribPointer(
+                index: 1,
+                size: 3,
+                type: VertexAttribPointerType.Float,
+                normalized: false,
+                stride: 6 * sizeof(float),
+                offset: 3 * sizeof(float));
+            GL.EnableVertexAttribArray(1);
 
             GL.BindVertexArray(0);
         }
