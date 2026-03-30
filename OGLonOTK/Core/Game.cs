@@ -14,6 +14,8 @@ namespace OGLonOTK.Core
         private Mesh _cubeMesh;
         private GameObject _cubeObject;
         private Camera _camera;
+        private Vector2 _lastMousePosition;
+        private bool _firstMove = true;
 
         public Game(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
             : base(gameWindowSettings, nativeWindowSettings)
@@ -25,6 +27,7 @@ namespace OGLonOTK.Core
             base.OnLoad();
 
             _camera = new Camera(new Vector3(0.0f, 0.0f, 3.0f));
+            CursorState = CursorState.Grabbed;
 
             GL.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
             GL.Enable(EnableCap.DepthTest);
@@ -124,23 +127,32 @@ namespace OGLonOTK.Core
             }
 
             if (input.IsKeyDown(Keys.W))
-            {
                 _camera.MoveForward((float)e.Time);
-            }
 
             if (input.IsKeyDown(Keys.S))
-            {
                 _camera.MoveBackward((float)e.Time);
-            }
 
             if (input.IsKeyDown(Keys.A))
-            {
                 _camera.MoveLeft((float)e.Time);
-            }
 
             if (input.IsKeyDown(Keys.D))
-            {
                 _camera.MoveRight((float)e.Time);
+
+            var mouse = MouseState;
+
+            if (_firstMove)
+            {
+                _lastMousePosition = mouse.Position;
+                _firstMove = false;
+            }
+            else
+            {
+                var deltaX = mouse.X - _lastMousePosition.X;
+                var deltaY = mouse.Y - _lastMousePosition.Y;
+
+                _lastMousePosition = mouse.Position;
+
+                _camera.AddRotation(deltaX, deltaY);
             }
         }
 

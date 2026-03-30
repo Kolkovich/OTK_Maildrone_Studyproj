@@ -9,6 +9,10 @@ namespace OGLonOTK.Graphics
         public Vector3 Up { get; set; } = Vector3.UnitY;
 
         public float Speed { get; set; } = 2.5f;
+        public float Sensitivity { get; set; } = 0.2f;
+
+        public float Pitch { get; set; } = 0.0f;
+        public float Yaw { get; set; } = -90.0f;
 
         public Camera(Vector3 position)
         {
@@ -40,6 +44,21 @@ namespace OGLonOTK.Graphics
         {
             var right = Vector3.Normalize(Vector3.Cross(Front, Up));
             Position -= right * Speed * deltaTime;
+        }
+
+        public void AddRotation(float deltaX, float deltaY)
+        {
+            Yaw += deltaX * Sensitivity;
+            Pitch -= deltaY * Sensitivity;
+
+            Pitch = MathHelper.Clamp(Pitch, -89f, 89f);
+
+            Vector3 direction;
+            direction.X = MathF.Cos(MathHelper.DegreesToRadians(Yaw)) * MathF.Cos(MathHelper.DegreesToRadians(Pitch));
+            direction.Y = MathF.Sin(MathHelper.DegreesToRadians(Pitch));
+            direction.Z = MathF.Sin(MathHelper.DegreesToRadians(Yaw)) * MathF.Cos(MathHelper.DegreesToRadians(Pitch));
+
+            Front = Vector3.Normalize(direction);
         }
     }
 }
