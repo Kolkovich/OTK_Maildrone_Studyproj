@@ -1,15 +1,18 @@
 ﻿using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
-using OpenTK.Windowing.GraphicsLibraryFramework;
 using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 using OGLonOTK.Graphics;
+using OGLonOTK.World;
 
 namespace OGLonOTK.Core
 {
     public class Game : GameWindow
     {
         private Shader _shader;
-        private Mesh _rectangleMesh;
+        private Mesh _cubeMesh;
+        private GameObject _cubeObject;
 
         public Game(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
             : base(gameWindowSettings, nativeWindowSettings)
@@ -21,36 +24,87 @@ namespace OGLonOTK.Core
             base.OnLoad();
 
             GL.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+            GL.Enable(EnableCap.DepthTest);
 
             float[] vertices =
             {
-                // position             // color
-                -0.5f, -0.5f, 0.0f,     1.0f, 0.0f, 0.0f, // bottom-left, red
-                0.5f, -0.5f, 0.0f,     0.9f, 0.0f, 0.1f, // bottom-right,
-                0.5f,  0.5f, 0.0f,     0.7f, 0.1f, 0.2f, // top-right,
-               -0.5f,  0.5f, 0.0f,     0.9f, 0.0f, 0.1f  // top-left,
+                // Front face (red)
+                -0.5f, -0.5f,  0.5f,   1.0f, 0.0f, 0.0f,
+                 0.5f, -0.5f,  0.5f,   1.0f, 0.0f, 0.0f,
+                 0.5f,  0.5f,  0.5f,   1.0f, 0.0f, 0.0f,
+                -0.5f,  0.5f,  0.5f,   1.0f, 0.0f, 0.0f,
+
+                // Back face (green)
+                -0.5f, -0.5f, -0.5f,   0.0f, 1.0f, 0.0f,
+                 0.5f, -0.5f, -0.5f,   0.0f, 1.0f, 0.0f,
+                 0.5f,  0.5f, -0.5f,   0.0f, 1.0f, 0.0f,
+                -0.5f,  0.5f, -0.5f,   0.0f, 1.0f, 0.0f,
+
+                // Left face (blue)
+                -0.5f, -0.5f, -0.5f,   0.0f, 0.0f, 1.0f,
+                -0.5f, -0.5f,  0.5f,   0.0f, 0.0f, 1.0f,
+                -0.5f,  0.5f,  0.5f,   0.0f, 0.0f, 1.0f,
+                -0.5f,  0.5f, -0.5f,   0.0f, 0.0f, 1.0f,
+
+                // Right face (yellow)
+                 0.5f, -0.5f, -0.5f,   1.0f, 1.0f, 0.0f,
+                 0.5f, -0.5f,  0.5f,   1.0f, 1.0f, 0.0f,
+                 0.5f,  0.5f,  0.5f,   1.0f, 1.0f, 0.0f,
+                 0.5f,  0.5f, -0.5f,   1.0f, 1.0f, 0.0f,
+
+                // Top face (magenta)
+                -0.5f,  0.5f, -0.5f,   1.0f, 0.0f, 1.0f,
+                -0.5f,  0.5f,  0.5f,   1.0f, 0.0f, 1.0f,
+                 0.5f,  0.5f,  0.5f,   1.0f, 0.0f, 1.0f,
+                 0.5f,  0.5f, -0.5f,   1.0f, 0.0f, 1.0f,
+
+                // Bottom face (cyan)
+                -0.5f, -0.5f, -0.5f,   0.0f, 1.0f, 1.0f,
+                -0.5f, -0.5f,  0.5f,   0.0f, 1.0f, 1.0f,
+                 0.5f, -0.5f,  0.5f,   0.0f, 1.0f, 1.0f,
+                 0.5f, -0.5f, -0.5f,   0.0f, 1.0f, 1.0f
             };
 
             uint[] indices =
             {
-                0, 1, 2,
-                2, 3, 0
+                0, 1, 2,  2, 3, 0,
+                4, 5, 6,  6, 7, 4,
+                8, 9, 10, 10, 11, 8,
+                12, 13, 14, 14, 15, 12,
+                16, 17, 18, 18, 19, 16,
+                20, 21, 22, 22, 23, 20
             };
 
             _shader = new Shader("Shaders/shader.vert", "Shaders/shader.frag");
 
-            _rectangleMesh = new Mesh(vertices, indices);
-            _rectangleMesh.Load();
+            _cubeMesh = new Mesh(vertices, indices);
+            _cubeMesh.Load();
+
+            _cubeObject = new GameObject(_cubeMesh, _shader)
+            {
+                Position = Vector3.Zero,
+                Rotation = new Vector3(
+                    MathHelper.DegreesToRadians(20f),
+                    MathHelper.DegreesToRadians(30f),
+                    0f),
+                Scale = Vector3.One
+            };
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
         {
             base.OnRenderFrame(e);
 
-            GL.Clear(ClearBufferMask.ColorBufferBit);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            _shader.Use();
-            _rectangleMesh.Render();
+            var view = Matrix4.CreateTranslation(0.0f, 0.0f, -3.0f);
+            var projection = Matrix4.CreatePerspectiveFieldOfView(
+                MathHelper.DegreesToRadians(45f),
+                Size.X / (float)Size.Y,
+                0.1f,
+                100.0f);
+
+            _cubeObject.Render(view, projection);
 
             SwapBuffers();
         }
@@ -75,7 +129,7 @@ namespace OGLonOTK.Core
 
         protected override void OnUnload()
         {
-            _rectangleMesh.Unload();
+            _cubeMesh.Unload();
             GL.DeleteProgram(_shader.Handle);
 
             base.OnUnload();
