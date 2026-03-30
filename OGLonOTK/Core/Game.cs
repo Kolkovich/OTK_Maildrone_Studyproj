@@ -108,25 +108,27 @@ namespace OGLonOTK.Core
 
             _drone.Update((float)e.Time, input);
 
-            var mouse = MouseState;
+            Vector3 forward = new(
+                MathF.Sin(_drone.Rotation.Y),
+                0f,
+                MathF.Cos(_drone.Rotation.Y)
+            );
 
-            if (_firstMove)
-            {
-                _lastMousePosition = mouse.Position;
-                _firstMove = false;
-            }
-            else
-            {
-                var deltaX = mouse.X - _lastMousePosition.X;
-                var deltaY = mouse.Y - _lastMousePosition.Y;
+            forward = Vector3.Normalize(forward);
 
-                _lastMousePosition = mouse.Position;
+            float followDistance = 5.0f;
+            float followHeight = 2.0f;
 
-                _camera.AddRotation(deltaX, deltaY);
-            }
+            Vector3 targetCameraPosition =
+                _drone.Position
+                - forward * followDistance
+                + Vector3.UnitY * followHeight;
 
-            // Камера пока просто следует за дроном с небольшим смещением
-            _camera.Position = _drone.Position + new Vector3(0.0f, 2.0f, 5.0f);
+            float followSpeed = 4.0f;
+            float t = followSpeed * (float)e.Time;
+            t = MathF.Min(t, 1.0f);
+
+            _camera.Position = Vector3.Lerp(_camera.Position, targetCameraPosition, t);
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
@@ -135,7 +137,19 @@ namespace OGLonOTK.Core
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            var view = _camera.GetViewMatrix();
+            Vector3 forward = new(
+                MathF.Sin(_drone.Rotation.Y),
+                0f,
+                MathF.Cos(_drone.Rotation.Y)
+            );
+
+            forward = Vector3.Normalize(forward);
+
+            float lookAheadDistance = 2.0f;
+            Vector3 lookTarget = _drone.Position + forward * lookAheadDistance;
+
+            var view = Matrix4.LookAt(_camera.Position, lookTarget, Vector3.UnitY);
+
             var projection = Matrix4.CreatePerspectiveFieldOfView(
                 MathHelper.DegreesToRadians(45f),
                 Size.X / (float)Size.Y,
