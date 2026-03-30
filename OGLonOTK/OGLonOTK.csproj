@@ -13,7 +13,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="World\" />
     <Folder Include="Physics\" />
     <Folder Include="Assets\" />
   </ItemGroup>

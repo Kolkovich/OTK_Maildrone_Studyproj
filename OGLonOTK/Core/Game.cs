@@ -12,8 +12,9 @@ namespace OGLonOTK.Core
     {
         private Shader _shader;
         private Mesh _cubeMesh;
-        private GameObject _cubeObject;
+        private Drone _drone;
         private Camera _camera;
+
         private Vector2 _lastMousePosition;
         private bool _firstMove = true;
 
@@ -26,11 +27,10 @@ namespace OGLonOTK.Core
         {
             base.OnLoad();
 
-            _camera = new Camera(new Vector3(0.0f, 0.0f, 3.0f));
-            CursorState = CursorState.Grabbed;
-
             GL.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
             GL.Enable(EnableCap.DepthTest);
+
+            CursorState = CursorState.Grabbed;
 
             float[] vertices =
             {
@@ -82,37 +82,17 @@ namespace OGLonOTK.Core
             };
 
             _shader = new Shader("Shaders/shader.vert", "Shaders/shader.frag");
-
             _cubeMesh = new Mesh(vertices, indices);
             _cubeMesh.Load();
 
-            _cubeObject = new GameObject(_cubeMesh, _shader)
+            _drone = new Drone(_cubeMesh, _shader)
             {
                 Position = Vector3.Zero,
-                Rotation = new Vector3(
-                    MathHelper.DegreesToRadians(20f),
-                    MathHelper.DegreesToRadians(30f),
-                    0f),
-                Scale = Vector3.One
+                Rotation = Vector3.Zero,
+                Scale = new Vector3(1.0f, 0.3f, 1.0f)
             };
-        }
 
-        protected override void OnRenderFrame(FrameEventArgs e)
-        {
-            base.OnRenderFrame(e);
-
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-
-            var view = _camera.GetViewMatrix();
-            var projection = Matrix4.CreatePerspectiveFieldOfView(
-                MathHelper.DegreesToRadians(45f),
-                Size.X / (float)Size.Y,
-                0.1f,
-                100.0f);
-
-            _cubeObject.Render(view, projection);
-
-            SwapBuffers();
+            _camera = new Camera(new Vector3(0.0f, 2.0f, 5.0f));
         }
 
         protected override void OnUpdateFrame(FrameEventArgs e)
@@ -126,17 +106,7 @@ namespace OGLonOTK.Core
                 Close();
             }
 
-            if (input.IsKeyDown(Keys.W))
-                _camera.MoveForward((float)e.Time);
-
-            if (input.IsKeyDown(Keys.S))
-                _camera.MoveBackward((float)e.Time);
-
-            if (input.IsKeyDown(Keys.A))
-                _camera.MoveLeft((float)e.Time);
-
-            if (input.IsKeyDown(Keys.D))
-                _camera.MoveRight((float)e.Time);
+            _drone.Update((float)e.Time, input);
 
             var mouse = MouseState;
 
@@ -154,6 +124,27 @@ namespace OGLonOTK.Core
 
                 _camera.AddRotation(deltaX, deltaY);
             }
+
+            // Камера пока просто следует за дроном с небольшим смещением
+            _camera.Position = _drone.Position + new Vector3(0.0f, 2.0f, 5.0f);
+        }
+
+        protected override void OnRenderFrame(FrameEventArgs e)
+        {
+            base.OnRenderFrame(e);
+
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            var view = _camera.GetViewMatrix();
+            var projection = Matrix4.CreatePerspectiveFieldOfView(
+                MathHelper.DegreesToRadians(45f),
+                Size.X / (float)Size.Y,
+                0.1f,
+                100.0f);
+
+            _drone.Render(view, projection);
+
+            SwapBuffers();
         }
 
         protected override void OnResize(ResizeEventArgs e)
