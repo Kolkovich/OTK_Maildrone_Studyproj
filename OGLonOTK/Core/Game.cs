@@ -18,7 +18,11 @@ namespace OGLonOTK.Core
         private Shader _overlayShader;
         private OverlayMesh _overlayMesh;
         private List<GameObject> _sceneObjects = [];
-        private List<GameObject> _obstacles = [];
+        private List<GameObject> _obstacles = []; // препятствия для дрона
+        private List<GameObject> _supportObjects = []; // объекты для держания сферы
+        private Mesh _sphereMesh;
+        private CargoSphere _cargoSphere;
+        private GameObject _block1; // Отдельно чтобы не искать среди sceneObjects
 
         private Vector2 _lastMousePosition;
         private bool _firstMove = true;
@@ -35,60 +39,37 @@ namespace OGLonOTK.Core
             GL.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
             GL.Enable(EnableCap.DepthTest);
 
-            CursorState = CursorState.Grabbed;
-
-            float[] vertices =
-            {
-                // Front face (red)
-                -0.5f, -0.5f,  0.5f,   1.0f, 0.0f, 0.0f,
-                 0.5f, -0.5f,  0.5f,   1.0f, 0.0f, 0.0f,
-                 0.5f,  0.5f,  0.5f,   1.0f, 0.0f, 0.0f,
-                -0.5f,  0.5f,  0.5f,   1.0f, 0.0f, 0.0f,
-
-                // Back face (green)
-                -0.5f, -0.5f, -0.5f,   0.0f, 1.0f, 0.0f,
-                 0.5f, -0.5f, -0.5f,   0.0f, 1.0f, 0.0f,
-                 0.5f,  0.5f, -0.5f,   0.0f, 1.0f, 0.0f,
-                -0.5f,  0.5f, -0.5f,   0.0f, 1.0f, 0.0f,
-
-                // Left face (blue)
-                -0.5f, -0.5f, -0.5f,   0.0f, 0.0f, 1.0f,
-                -0.5f, -0.5f,  0.5f,   0.0f, 0.0f, 1.0f,
-                -0.5f,  0.5f,  0.5f,   0.0f, 0.0f, 1.0f,
-                -0.5f,  0.5f, -0.5f,   0.0f, 0.0f, 1.0f,
-
-                // Right face (yellow)
-                 0.5f, -0.5f, -0.5f,   1.0f, 1.0f, 0.0f,
-                 0.5f, -0.5f,  0.5f,   1.0f, 1.0f, 0.0f,
-                 0.5f,  0.5f,  0.5f,   1.0f, 1.0f, 0.0f,
-                 0.5f,  0.5f, -0.5f,   1.0f, 1.0f, 0.0f,
-
-                // Top face (magenta)
-                -0.5f,  0.5f, -0.5f,   1.0f, 0.0f, 1.0f,
-                -0.5f,  0.5f,  0.5f,   1.0f, 0.0f, 1.0f,
-                 0.5f,  0.5f,  0.5f,   1.0f, 0.0f, 1.0f,
-                 0.5f,  0.5f, -0.5f,   1.0f, 0.0f, 1.0f,
-
-                // Bottom face (cyan)
-                -0.5f, -0.5f, -0.5f,   0.0f, 1.0f, 1.0f,
-                -0.5f, -0.5f,  0.5f,   0.0f, 1.0f, 1.0f,
-                 0.5f, -0.5f,  0.5f,   0.0f, 1.0f, 1.0f,
-                 0.5f, -0.5f, -0.5f,   0.0f, 1.0f, 1.0f
-            };
-
-            uint[] indices =
-            {
-                0, 1, 2,  2, 3, 0,
-                4, 5, 6,  6, 7, 4,
-                8, 9, 10, 10, 11, 8,
-                12, 13, 14, 14, 15, 12,
-                16, 17, 18, 18, 19, 16,
-                20, 21, 22, 22, 23, 20
-            };
-
             _shader = new Shader("Shaders/shader.vert", "Shaders/shader.frag");
-            _cubeMesh = new Mesh(vertices, indices);
+
+            var (cubeVertices, cubeIndices) = MeshFactory.CreateCubeVertices();
+            _cubeMesh = new Mesh(cubeVertices, cubeIndices);
             _cubeMesh.Load();
+
+            CreateScene();
+
+            float sphereRadius = 0.4f;
+
+            var (sphereVertices, sphereIndices) = MeshFactory.CreateUvSphere(
+                sphereRadius,
+                16,
+                24,
+                new Vector3(1.0f, 0.8f, 0.2f));
+
+            _sphereMesh = new Mesh(sphereVertices, sphereIndices);
+            _sphereMesh.Load();
+
+            _cargoSphere = new CargoSphere(_sphereMesh, _shader, sphereRadius)
+            {
+                Position = new Vector3(
+                    _block1.Position.X,
+                    _block1.Position.Y + _block1.Scale.Y / 2.0f + sphereRadius,
+                    _block1.Position.Z),
+                Rotation = Vector3.Zero,
+                Scale = Vector3.One,
+                IsGrounded = true
+            };
+
+            _sceneObjects.Add(_cargoSphere);
 
             _drone = new Drone(_cubeMesh, _shader)
             {
@@ -96,8 +77,6 @@ namespace OGLonOTK.Core
                 Rotation = Vector3.Zero,
                 Scale = new Vector3(1.0f, 0.3f, 1.0f)
             };
-
-            CreateScene();
 
             // Оверлей
             _overlayShader = new Shader("Shaders/overlay.vert", "Shaders/overlay.frag");
@@ -184,14 +163,16 @@ namespace OGLonOTK.Core
                 movement -= Vector3.UnitY * _drone.VerticalSpeed * dt;
             }
 
-            MoveDroneWithCollision(movement);
-
             if (_drone.Position.Y < -0.2f)
             {
                 var position = _drone.Position;
                 position.Y = -0.2f;
                 _drone.Position = position;
             }
+
+            MoveDroneWithCollision(movement);
+
+            UpdateCargoSphere(dt);
 
             Vector3 cameraForward = _drone.GetForward();
 
@@ -262,6 +243,7 @@ namespace OGLonOTK.Core
         protected override void OnUnload()
         {
             _cubeMesh.Unload();
+            _sphereMesh.Unload();
             GL.DeleteProgram(_shader.Handle);
 
             base.OnUnload();
@@ -271,6 +253,7 @@ namespace OGLonOTK.Core
         {
             _sceneObjects = new List<GameObject>();
             _obstacles = new List<GameObject>();
+            _supportObjects = new List<GameObject>();
 
             var floor = new GameObject(_cubeMesh, _shader)
             {
@@ -314,7 +297,7 @@ namespace OGLonOTK.Core
                 Rotation = Vector3.Zero
             };
 
-            var block1 = new GameObject(_cubeMesh, _shader)
+            _block1 = new GameObject(_cubeMesh, _shader)
             {
                 Position = new Vector3(0.0f, -0.3f, 4.0f),
                 Scale = new Vector3(2.0f, 1.0f, 2.0f),
@@ -327,14 +310,17 @@ namespace OGLonOTK.Core
             _sceneObjects.Add(wallBack);
             _sceneObjects.Add(pillar1);
             _sceneObjects.Add(pillar2);
-            _sceneObjects.Add(block1);
+            _sceneObjects.Add(_block1);
 
             _obstacles.Add(wallLeft);
             _obstacles.Add(wallRight);
             _obstacles.Add(wallBack);
             _obstacles.Add(pillar1);
             _obstacles.Add(pillar2);
-            _obstacles.Add(block1);
+            _obstacles.Add(_block1);
+
+            _supportObjects.Add(floor);
+            _supportObjects.Add(_block1);
         }
 
         private bool IsCollidingWithObstacles(Aabb droneAabb)
@@ -382,6 +368,58 @@ namespace OGLonOTK.Core
             }
 
             _drone.Position = position;
+        }
+
+        private void UpdateCargoSphere(float dt)
+        {
+            _cargoSphere.IsGrounded = false;
+
+            var velocity = _cargoSphere.Velocity;
+
+            velocity.Y -= _cargoSphere.Gravity * dt;
+
+            Vector3 newPosition = _cargoSphere.Position + velocity * dt;
+
+            float bestSupportY = float.NegativeInfinity;
+            bool foundSupport = false;
+
+            foreach (var support in _supportObjects)
+            {
+                float supportMinX = support.Position.X - support.Scale.X / 2.0f;
+                float supportMaxX = support.Position.X + support.Scale.X / 2.0f;
+                float supportMinZ = support.Position.Z - support.Scale.Z / 2.0f;
+                float supportMaxZ = support.Position.Z + support.Scale.Z / 2.0f;
+
+                bool insideX = newPosition.X >= supportMinX && newPosition.X <= supportMaxX;
+                bool insideZ = newPosition.Z >= supportMinZ && newPosition.Z <= supportMaxZ;
+
+                if (!insideX || !insideZ)
+                    continue;
+
+                float supportTopY = support.Position.Y + support.Scale.Y / 2.0f;
+                float sphereBottomY = newPosition.Y - _cargoSphere.Radius;
+                float currentBottomY = _cargoSphere.Position.Y - _cargoSphere.Radius;
+
+                bool crossingDownOntoSupport =
+                    currentBottomY >= supportTopY &&
+                    sphereBottomY <= supportTopY;
+
+                if (crossingDownOntoSupport && supportTopY > bestSupportY)
+                {
+                    bestSupportY = supportTopY;
+                    foundSupport = true;
+                }
+            }
+
+            if (foundSupport)
+            {
+                newPosition.Y = bestSupportY + _cargoSphere.Radius;
+                velocity.Y = 0.0f;
+                _cargoSphere.IsGrounded = true;
+            }
+
+            _cargoSphere.Position = newPosition;
+            _cargoSphere.Velocity = velocity;
         }
     }
 }
