@@ -189,7 +189,7 @@ namespace OGLonOTK.Core
 
             if (_cargoSphere.IsAttached)
             {
-                UpdateAttachedCargo();
+                UpdateAttachedCargo(dt);
             }
             else
             {
@@ -605,6 +605,92 @@ namespace OGLonOTK.Core
         private Vector3 GetDroneGrabPoint()
         {
             return _drone.Position + new Vector3(0f, -0.35f, 0f);
+        }
+        private GameObject? GetCollidingObstacleForCargo(Vector3 sphereCenter)
+        {
+            foreach (var obstacle in _obstacles)
+            {
+                if (SphereIntersectsAabb(sphereCenter, _cargoSphere.Radius, obstacle.GetAabb()))
+                {
+                    return obstacle;
+                }
+            }
+
+            return null;
+        }
+
+        private void UpdateAttachedCargo(float dt)
+        {
+            Vector3 grabPoint = GetDroneGrabPoint();
+            Vector3 desiredPosition = grabPoint - new Vector3(0f, _cargoSphere.Radius, 0f);
+
+            GameObject? obstacle = GetCollidingObstacleForCargo(desiredPosition);
+
+            if (obstacle == null)
+            {
+                _cargoSphere.Position = desiredPosition;
+                _cargoSphere.Velocity = Vector3.Zero;
+                _cargoSphere.IsGrounded = false;
+                return;
+            }
+
+            var aabb = obstacle.GetAabb();
+
+            bool horizontallyInside =
+                desiredPosition.X >= aabb.Min.X && desiredPosition.X <= aabb.Max.X &&
+                desiredPosition.Z >= aabb.Min.Z && desiredPosition.Z <= aabb.Max.Z;
+
+            float obstacleTop = aabb.Max.Y;
+            float sphereBottom = desiredPosition.Y - _cargoSphere.Radius;
+            float currentBottom = _cargoSphere.Position.Y - _cargoSphere.Radius;
+
+            bool collisionFromBelow =
+                horizontallyInside &&
+                currentBottom >= obstacleTop &&
+                sphereBottom <= obstacleTop;
+
+            if (collisionFromBelow)
+            {
+                _cargoSphere.Position = new Vector3(
+                    desiredPosition.X,
+                    obstacleTop + _cargoSphere.Radius,
+                    desiredPosition.Z);
+
+                _cargoSphere.Velocity = new Vector3(0f, 1.0f, 0f);
+                _cargoSphere.IsGrounded = false;
+                return;
+            }
+
+            ForceDetachCargoFromObstacle(obstacle, dt);
+        }
+
+        private void ForceDetachCargoFromObstacle(GameObject obstacle, float dt)
+        {
+            _cargoSphere.IsAttached = false;
+            _cargoSphere.IsGrounded = false;
+            _cargoReleaseCooldown = 0.15f;
+
+            Vector3 obstacleCenter = obstacle.Position;
+            Vector3 pushDirection = _cargoSphere.Position - obstacleCenter;
+
+            pushDirection.Y = 0f;
+
+            if (pushDirection.LengthSquared < 0.0001f)
+            {
+                pushDirection = _drone.GetForward();
+            }
+            else
+            {
+                pushDirection = Vector3.Normalize(pushDirection);
+            }
+
+            Vector3 droneForward = _drone.GetForward();
+            float droneSpeedFactor = _drone.MoveSpeed * 0.6f;
+
+            _cargoSphere.Velocity =
+                pushDirection * droneSpeedFactor +
+                droneForward * (droneSpeedFactor * 0.35f) +
+                new Vector3(0f, 1.0f, 0f);
         }
     }
 }
