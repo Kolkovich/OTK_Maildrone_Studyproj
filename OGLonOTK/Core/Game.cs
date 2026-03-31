@@ -29,6 +29,7 @@ namespace OGLonOTK.Core
         private float _cargoReleaseCooldown = 0f;
         private float _cargoLostIndicatorTimer = 0f;
         private Mesh _importedDroneBodyMesh;
+        private DronePart _droneInnerBodyPart;
 
         private Vector2 _lastMousePosition;
         private bool _firstMove = true;
@@ -200,6 +201,12 @@ namespace OGLonOTK.Core
                 position.Y = -0.2f;
                 _drone.Position = position;
             }
+
+            float forwardAmount = Vector3.Dot(movement, forward);
+            float rightAmount = Vector3.Dot(movement, right);
+
+            float signedAnimationInput = ComputeSignedHorizontalAnimationInput(forwardAmount, rightAmount);
+            UpdateDroneInnerAnimation(dt, signedAnimationInput);
 
             // Логика с грузом: если везётся, то не катится
             MoveDroneWithCollision(movement);
@@ -765,10 +772,10 @@ namespace OGLonOTK.Core
         {
             _drone.Parts.Clear();
 
-            var innerBody = new DronePart(_importedDroneBodyMesh, _shader)
+            _droneInnerBodyPart = new DronePart(_importedDroneBodyMesh, _shader)
             {
                 LocalPosition = Vector3.Zero,
-                LocalScale = new Vector3(1.2f, 2.0f, 1.2f)
+                LocalScale = new Vector3(0.7f, 0.7f, 0.7f)
             };
 
             float frameThickness = 0.12f;
@@ -800,11 +807,39 @@ namespace OGLonOTK.Core
                 LocalScale = new Vector3(frameThickness, frameHeight, frameOuterSize)
             };
 
-            _drone.Parts.Add(innerBody);
+            _drone.Parts.Add(_droneInnerBodyPart);
             _drone.Parts.Add(frameFront);
             _drone.Parts.Add(frameBack);
             _drone.Parts.Add(frameLeft);
             _drone.Parts.Add(frameRight);
+        }
+
+        private float ComputeSignedHorizontalAnimationInput(float forwardAmount, float rightAmount)
+        {
+            float bestValue = forwardAmount;
+            float bestAbs = MathF.Abs(forwardAmount);
+
+            float leftRightRule = -rightAmount;
+
+            if (MathF.Abs(leftRightRule) > bestAbs)
+            {
+                bestValue = leftRightRule;
+            }
+
+            return bestValue;
+        }
+
+        private void UpdateDroneInnerAnimation(float dt, float signedAnimationInput)
+        {
+            if (_droneInnerBodyPart == null)
+                return;
+
+            float animationSpeedFactor = 240.0f;
+            float rotationDelta = signedAnimationInput * animationSpeedFactor * dt;
+
+            var localRotation = _droneInnerBodyPart.LocalRotation;
+            localRotation.Y += rotationDelta;
+            _droneInnerBodyPart.LocalRotation = localRotation;
         }
     }
 }
