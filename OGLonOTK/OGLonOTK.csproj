@@ -12,10 +12,6 @@
     <PackageReference Include="OpenTK.GLWpfControl" Version="4.3.6" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Assets\" />
-  </ItemGroup>
-
 	<ItemGroup>
 		<None Update="Shaders\shader.vert">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -27,6 +23,9 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
 		<None Update="Shaders\overlay.frag">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="Assets\Vint.obj">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
 	</ItemGroup>

@@ -1,4 +1,5 @@
-﻿using OpenTK.Mathematics;
+﻿using System.Collections.Generic;
+using OpenTK.Mathematics;
 using OGLonOTK.Graphics;
 
 namespace OGLonOTK.World
@@ -8,6 +9,8 @@ namespace OGLonOTK.World
         public float MoveSpeed { get; set; } = 2.5f;
         public float VerticalSpeed { get; set; } = 2.0f;
         public float RotationSpeed { get; set; } = MathHelper.DegreesToRadians(90f);
+
+        public List<DronePart> Parts { get; } = new();
 
         public Drone(Mesh mesh, Shader shader) : base(mesh, shader)
         {
@@ -22,6 +25,16 @@ namespace OGLonOTK.World
             );
 
             return Vector3.Normalize(forward);
+        }
+
+        public void RenderComposite(Matrix4 view, Matrix4 projection)
+        {
+            Matrix4 parentModel = GetModelMatrix();
+
+            foreach (var part in Parts)
+            {
+                part.Render(parentModel, view, projection);
+            }
         }
     }
 }

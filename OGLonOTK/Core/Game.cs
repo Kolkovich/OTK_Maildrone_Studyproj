@@ -28,6 +28,7 @@ namespace OGLonOTK.Core
         // временные показатели
         private float _cargoReleaseCooldown = 0f;
         private float _cargoLostIndicatorTimer = 0f;
+        private Mesh _importedDroneBodyMesh;
 
         private Vector2 _lastMousePosition;
         private bool _firstMove = true;
@@ -89,6 +90,13 @@ namespace OGLonOTK.Core
                 Rotation = Vector3.Zero,
                 Scale = new Vector3(1.0f, 0.3f, 1.0f)
             };
+
+            var (importedVertices, importedIndices) = ObjLoader.LoadAsColoredMesh("Assets/Vint.obj", new Vector3(0.7f, 0.7f, 0.7f));
+
+            _importedDroneBodyMesh = new Mesh(importedVertices, importedIndices);
+            _importedDroneBodyMesh.Load();
+
+            BuildDroneParts();
 
             // Оверлей
             _overlayShapeShader = new Shader("Shaders/overlay.vert", "Shaders/overlay.frag");
@@ -251,7 +259,7 @@ namespace OGLonOTK.Core
                 obj.Render(view, projection);
             }
 
-            _drone.Render(view, projection);
+            _drone.RenderComposite(view, projection);
 
             RenderCargoIndicator();
 
@@ -271,6 +279,7 @@ namespace OGLonOTK.Core
             _sphereMesh.Unload();
             _circleOverlayMesh.Unload();
             _crossOverlayMesh.Unload();
+            _importedDroneBodyMesh.Unload();
             GL.DeleteProgram(_overlayShapeShader.Handle);
             GL.DeleteProgram(_shader.Handle);
 
@@ -750,6 +759,52 @@ namespace OGLonOTK.Core
             }
 
             GL.Enable(EnableCap.DepthTest);
+        }
+
+        private void BuildDroneParts()
+        {
+            _drone.Parts.Clear();
+
+            var innerBody = new DronePart(_importedDroneBodyMesh, _shader)
+            {
+                LocalPosition = Vector3.Zero,
+                LocalScale = new Vector3(1.2f, 2.0f, 1.2f)
+            };
+
+            float frameThickness = 0.12f;
+            float frameHeight = 0.36f;
+            float frameOuterSize = 1.4f;
+            float half = frameOuterSize / 2.0f;
+
+            var frameFront = new DronePart(_cubeMesh, _shader)
+            {
+                LocalPosition = new Vector3(0f, 0f, half),
+                LocalScale = new Vector3(frameOuterSize, frameHeight, frameThickness)
+            };
+
+            var frameBack = new DronePart(_cubeMesh, _shader)
+            {
+                LocalPosition = new Vector3(0f, 0f, -half),
+                LocalScale = new Vector3(frameOuterSize, frameHeight, frameThickness)
+            };
+
+            var frameLeft = new DronePart(_cubeMesh, _shader)
+            {
+                LocalPosition = new Vector3(-half, 0f, 0f),
+                LocalScale = new Vector3(frameThickness, frameHeight, frameOuterSize)
+            };
+
+            var frameRight = new DronePart(_cubeMesh, _shader)
+            {
+                LocalPosition = new Vector3(half, 0f, 0f),
+                LocalScale = new Vector3(frameThickness, frameHeight, frameOuterSize)
+            };
+
+            _drone.Parts.Add(innerBody);
+            _drone.Parts.Add(frameFront);
+            _drone.Parts.Add(frameBack);
+            _drone.Parts.Add(frameLeft);
+            _drone.Parts.Add(frameRight);
         }
     }
 }
