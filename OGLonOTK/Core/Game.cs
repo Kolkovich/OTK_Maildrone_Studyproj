@@ -113,6 +113,11 @@ namespace OGLonOTK.Core
                 Close();
             }
 
+            if (input.IsKeyPressed(Keys.F))
+            {
+                ToggleCargoAttachment();
+            }
+
             var rotation = _drone.Rotation;
 
             if (input.IsKeyDown(Keys.Q))
@@ -170,10 +175,18 @@ namespace OGLonOTK.Core
                 _drone.Position = position;
             }
 
+            // Логика с грузом: если везётся, то не катится
             MoveDroneWithCollision(movement);
 
-            HandleDroneCargoInteraction();
-            UpdateCargoSphere(dt);
+            if (_cargoSphere.IsAttached)
+            {
+                UpdateAttachedCargo();
+            }
+            else
+            {
+                HandleDroneCargoInteraction();
+                UpdateCargoSphere(dt);
+            }
 
             Vector3 cameraForward = _drone.GetForward();
 
@@ -524,6 +537,47 @@ namespace OGLonOTK.Core
             }
 
             return false;
+        }
+
+        private bool CanAttachCargo()
+        {
+            Vector3 offset = _cargoSphere.Position - _drone.Position;
+            float distance = offset.Length;
+
+            float attachDistance = 1.5f;
+            return distance <= attachDistance;
+        }
+
+        private void ToggleCargoAttachment()
+        {
+            if (_cargoSphere.IsAttached)
+            {
+                _cargoSphere.IsAttached = false;
+                _cargoSphere.IsGrounded = false;
+                _cargoSphere.Velocity = Vector3.Zero;
+                return;
+            }
+
+            if (CanAttachCargo())
+            {
+                _cargoSphere.IsAttached = true;
+                _cargoSphere.Velocity = Vector3.Zero;
+                _cargoSphere.IsGrounded = false;
+            }
+        }
+
+        private void UpdateAttachedCargo()
+        {
+            Vector3 forward = _drone.GetForward();
+
+            Vector3 targetPosition =
+                _drone.Position
+                + _cargoSphere.AttachOffset
+                + forward * 0.4f;
+
+            _cargoSphere.Position = targetPosition;
+            _cargoSphere.Velocity = Vector3.Zero;
+            _cargoSphere.IsGrounded = false;
         }
     }
 }

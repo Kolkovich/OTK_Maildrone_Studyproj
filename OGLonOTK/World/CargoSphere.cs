@@ -13,6 +13,9 @@ namespace OGLonOTK.World
         public float GroundDamping { get; set; } = 0.92f;
         public float AirDamping { get; set; } = 0.99f;
 
+        public bool IsAttached { get; set; } = false;
+        public Vector3 AttachOffset { get; set; } = new Vector3(0f, -0.9f, 0f);
+
         public CargoSphere(Mesh mesh, Shader shader, float radius) : base(mesh, shader)
         {
             Radius = radius;
