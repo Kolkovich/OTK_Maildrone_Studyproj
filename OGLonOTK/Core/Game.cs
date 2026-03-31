@@ -14,6 +14,9 @@ namespace OGLonOTK.Core
         private Mesh _cubeMesh;
         private Drone _drone;
         private Camera _camera;
+        private Shader _overlayShader;
+        private OverlayMesh _overlayMesh;
+        private List<GameObject> _sceneObjects = [];
 
         private Vector2 _lastMousePosition;
         private bool _firstMove = true;
@@ -92,6 +95,28 @@ namespace OGLonOTK.Core
                 Scale = new Vector3(1.0f, 0.3f, 1.0f)
             };
 
+            CreateScene();
+
+            // Оверлей
+            _overlayShader = new Shader("Shaders/overlay.vert", "Shaders/overlay.frag");
+
+            float[] overlayVertices =
+            {
+                10f,  10f,   0.2f, 0.8f, 0.2f,
+                160f, 10f,   0.2f, 0.8f, 0.2f,
+                160f, 40f,   0.2f, 0.8f, 0.2f,
+                10f,  40f,   0.2f, 0.8f, 0.2f
+            };
+
+            uint[] overlayIndices =
+            {
+                0, 1, 2,
+                2, 3, 0
+            };
+
+            _overlayMesh = new OverlayMesh(overlayVertices, overlayIndices);
+            _overlayMesh.Load();
+
             _camera = new Camera(new Vector3(0.0f, 2.0f, 5.0f));
         }
 
@@ -108,7 +133,7 @@ namespace OGLonOTK.Core
 
             _drone.Update((float)e.Time, input);
 
-            Vector3 forward = new(
+            Vector3 forward = new Vector3(
                 MathF.Sin(_drone.Rotation.Y),
                 0f,
                 MathF.Cos(_drone.Rotation.Y)
@@ -129,6 +154,8 @@ namespace OGLonOTK.Core
             t = MathF.Min(t, 1.0f);
 
             _camera.Position = Vector3.Lerp(_camera.Position, targetCameraPosition, t);
+
+            Title = $"Pos: X={_drone.Position.X:F2}, Y={_drone.Position.Y:F2}, Z={_drone.Position.Z:F2} | RotY={MathHelper.RadiansToDegrees(_drone.Rotation.Y):F1}";
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
@@ -156,7 +183,25 @@ namespace OGLonOTK.Core
                 0.1f,
                 100.0f);
 
+            foreach (var obj in _sceneObjects)
+            {
+                obj.Render(view, projection);
+            }
+
             _drone.Render(view, projection);
+
+            var overlayProjection = Matrix4.CreateOrthographicOffCenter(
+                0f, Size.X,
+                Size.Y, 0f,
+                -1f, 1f);
+
+            _overlayShader.Use();
+            _overlayShader.SetMatrix4("projection", overlayProjection);
+
+            // Чтобы overlay не конфликтовал с depth
+            GL.Disable(EnableCap.DepthTest);
+            _overlayMesh.Render();
+            GL.Enable(EnableCap.DepthTest);
 
             SwapBuffers();
         }
@@ -173,6 +218,71 @@ namespace OGLonOTK.Core
             GL.DeleteProgram(_shader.Handle);
 
             base.OnUnload();
+        }
+
+        private void CreateScene()
+        {
+            _sceneObjects = new List<GameObject>();
+
+
+            _sceneObjects = new List<GameObject>();
+
+            var floor = new GameObject(_cubeMesh, _shader)
+            {
+                Position = new Vector3(0.0f, -1.0f, 0.0f),
+                Scale = new Vector3(20.0f, 0.2f, 20.0f),
+                Rotation = Vector3.Zero
+            };
+
+            var wallLeft = new GameObject(_cubeMesh, _shader)
+            {
+                Position = new Vector3(-10.0f, 1.0f, 0.0f),
+                Scale = new Vector3(0.5f, 4.0f, 20.0f),
+                Rotation = Vector3.Zero
+            };
+
+            var wallRight = new GameObject(_cubeMesh, _shader)
+            {
+                Position = new Vector3(10.0f, 1.0f, 0.0f),
+                Scale = new Vector3(0.5f, 4.0f, 20.0f),
+                Rotation = Vector3.Zero
+            };
+
+            var wallBack = new GameObject(_cubeMesh, _shader)
+            {
+                Position = new Vector3(0.0f, 1.0f, -10.0f),
+                Scale = new Vector3(20.0f, 4.0f, 0.5f),
+                Rotation = Vector3.Zero
+            };
+
+            var pillar1 = new GameObject(_cubeMesh, _shader)
+            {
+                Position = new Vector3(-4.0f, 1.0f, -3.0f),
+                Scale = new Vector3(1.0f, 4.0f, 1.0f),
+                Rotation = Vector3.Zero
+            };
+
+            var pillar2 = new GameObject(_cubeMesh, _shader)
+            {
+                Position = new Vector3(4.0f, 1.0f, 2.0f),
+                Scale = new Vector3(1.0f, 4.0f, 1.0f),
+                Rotation = Vector3.Zero
+            };
+
+            var block1 = new GameObject(_cubeMesh, _shader)
+            {
+                Position = new Vector3(0.0f, -0.3f, 4.0f),
+                Scale = new Vector3(2.0f, 1.0f, 2.0f),
+                Rotation = Vector3.Zero
+            };
+
+            _sceneObjects.Add(floor);
+            _sceneObjects.Add(wallLeft);
+            _sceneObjects.Add(wallRight);
+            _sceneObjects.Add(wallBack);
+            _sceneObjects.Add(pillar1);
+            _sceneObjects.Add(pillar2);
+            _sceneObjects.Add(block1);
         }
     }
 }

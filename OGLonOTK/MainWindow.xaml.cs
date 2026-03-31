@@ -26,7 +26,7 @@ namespace OGLonOTK
         {
             var nativeWindowSettings = new NativeWindowSettings()
             {
-                ClientSize = new Vector2i(1200, 800),
+                ClientSize = new Vector2i(1280, 720),
                 Title = "LearnOpenTK - Creating a Window",
                 Flags = ContextFlags.ForwardCompatible,
                 Vsync = VSyncMode.On

@@ -52,12 +52,12 @@ namespace OGLonOTK.World
 
             if (input.IsKeyDown(Keys.A))
             {
-                position -= right * MoveSpeed * deltaTime;
+                position += right * MoveSpeed * deltaTime;
             }
 
             if (input.IsKeyDown(Keys.D))
             {
-                position += right * MoveSpeed * deltaTime;
+                position -= right * MoveSpeed * deltaTime;
             }
 
             if (input.IsKeyDown(Keys.Space))
