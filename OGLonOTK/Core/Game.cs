@@ -16,14 +16,18 @@ namespace OGLonOTK.Core
         private Drone _drone;
         private Camera _camera;
         private Shader _overlayShader;
-        private OverlayMesh _overlayMesh;
+        private Shader _overlayShapeShader;
+        private OverlayMesh _circleOverlayMesh;
+        private OverlayMesh _crossOverlayMesh;
         private List<GameObject> _sceneObjects = [];
         private List<GameObject> _obstacles = []; // препятствия для дрона
         private List<GameObject> _supportObjects = []; // объекты для держания сферы
         private Mesh _sphereMesh;
         private CargoSphere _cargoSphere;
         private GameObject _block1; // Отдельно чтобы не искать среди sceneObjects
+        // временные показатели
         private float _cargoReleaseCooldown = 0f;
+        private float _cargoLostIndicatorTimer = 0f;
 
         private Vector2 _lastMousePosition;
         private bool _firstMove = true;
@@ -31,6 +35,13 @@ namespace OGLonOTK.Core
         public Game(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
             : base(gameWindowSettings, nativeWindowSettings)
         {
+        }
+        private enum CargoIndicatorState
+        {
+            None,
+            CanAttach,
+            Attached,
+            Lost
         }
 
         protected override void OnLoad()
@@ -80,24 +91,15 @@ namespace OGLonOTK.Core
             };
 
             // Оверлей
-            _overlayShader = new Shader("Shaders/overlay.vert", "Shaders/overlay.frag");
+            _overlayShapeShader = new Shader("Shaders/overlay.vert", "Shaders/overlay.frag");
 
-            float[] overlayVertices =
-            {
-                10f,  10f,   0.2f, 0.8f, 0.2f,
-                160f, 10f,   0.2f, 0.8f, 0.2f,
-                160f, 40f,   0.2f, 0.8f, 0.2f,
-                10f,  40f,   0.2f, 0.8f, 0.2f
-            };
+            var (circleVertices, circleIndices) = MeshFactory.CreateCircle2D(20f, 32);
+            _circleOverlayMesh = new OverlayMesh(circleVertices, circleIndices);
+            _circleOverlayMesh.Load();
 
-            uint[] overlayIndices =
-            {
-                0, 1, 2,
-                2, 3, 0
-            };
-
-            _overlayMesh = new OverlayMesh(overlayVertices, overlayIndices);
-            _overlayMesh.Load();
+            var (crossVertices, crossIndices) = MeshFactory.CreateCross2D(18f, 4f);
+            _crossOverlayMesh = new OverlayMesh(crossVertices, crossIndices);
+            _crossOverlayMesh.Load();
 
             _camera = new Camera(new Vector3(0.0f, 2.0f, 5.0f));
         }
@@ -115,6 +117,13 @@ namespace OGLonOTK.Core
                 _cargoReleaseCooldown -= dt;
                 if (_cargoReleaseCooldown < 0f)
                     _cargoReleaseCooldown = 0f;
+            }
+
+            if (_cargoLostIndicatorTimer > 0f)
+            {
+                _cargoLostIndicatorTimer -= dt;
+                if (_cargoLostIndicatorTimer < 0f)
+                    _cargoLostIndicatorTimer = 0f;
             }
 
             if (input.IsKeyDown(Keys.Escape))
@@ -244,18 +253,7 @@ namespace OGLonOTK.Core
 
             _drone.Render(view, projection);
 
-            var overlayProjection = Matrix4.CreateOrthographicOffCenter(
-                0f, Size.X,
-                Size.Y, 0f,
-                -1f, 1f);
-
-            _overlayShader.Use();
-            _overlayShader.SetMatrix4("projection", overlayProjection);
-
-            // Чтобы overlay не конфликтовал с depth
-            GL.Disable(EnableCap.DepthTest);
-            _overlayMesh.Render();
-            GL.Enable(EnableCap.DepthTest);
+            RenderCargoIndicator();
 
             SwapBuffers();
         }
@@ -271,6 +269,9 @@ namespace OGLonOTK.Core
         {
             _cubeMesh.Unload();
             _sphereMesh.Unload();
+            _circleOverlayMesh.Unload();
+            _crossOverlayMesh.Unload();
+            GL.DeleteProgram(_overlayShapeShader.Handle);
             GL.DeleteProgram(_shader.Handle);
 
             base.OnUnload();
@@ -348,6 +349,8 @@ namespace OGLonOTK.Core
 
             _supportObjects.Add(floor);
             _supportObjects.Add(_block1);
+            _supportObjects.Add(pillar1);
+            _supportObjects.Add(pillar2);
         }
 
         private bool IsCollidingWithObstacles(Aabb droneAabb)
@@ -669,6 +672,7 @@ namespace OGLonOTK.Core
             _cargoSphere.IsAttached = false;
             _cargoSphere.IsGrounded = false;
             _cargoReleaseCooldown = 0.15f;
+            _cargoLostIndicatorTimer = 3.0f;
 
             Vector3 obstacleCenter = obstacle.Position;
             Vector3 pushDirection = _cargoSphere.Position - obstacleCenter;
@@ -691,6 +695,61 @@ namespace OGLonOTK.Core
                 pushDirection * droneSpeedFactor +
                 droneForward * (droneSpeedFactor * 0.35f) +
                 new Vector3(0f, 1.0f, 0f);
+        }
+
+        private CargoIndicatorState GetCargoIndicatorState()
+        {
+            if (_cargoLostIndicatorTimer > 0f)
+                return CargoIndicatorState.Lost;
+
+            if (_cargoSphere.IsAttached)
+                return CargoIndicatorState.Attached;
+
+            if (CanAttachCargo())
+                return CargoIndicatorState.CanAttach;
+
+            return CargoIndicatorState.None;
+        }
+
+        private void RenderCargoIndicator()
+        {
+            CargoIndicatorState state = GetCargoIndicatorState();
+
+            if (state == CargoIndicatorState.None)
+                return;
+
+            var projection = Matrix4.CreateOrthographicOffCenter(
+                0f, Size.X,
+                Size.Y, 0f,
+                -1f, 1f);
+
+            Matrix4 model = Matrix4.CreateTranslation(640f, 120f, 0f);
+
+            _overlayShapeShader.Use();
+            _overlayShapeShader.SetMatrix4("projection", projection);
+            _overlayShapeShader.SetMatrix4("model", model);
+
+            GL.Disable(EnableCap.DepthTest);
+
+            switch (state)
+            {
+                case CargoIndicatorState.CanAttach:
+                    _overlayShapeShader.SetVector3("overlayColor", new OpenTK.Mathematics.Vector3(0f, 1f, 0f));
+                    _circleOverlayMesh.Render();
+                    break;
+
+                case CargoIndicatorState.Attached:
+                    _overlayShapeShader.SetVector3("overlayColor", new OpenTK.Mathematics.Vector3(1f, 0f, 0f));
+                    _circleOverlayMesh.Render();
+                    break;
+
+                case CargoIndicatorState.Lost:
+                    _overlayShapeShader.SetVector3("overlayColor", new OpenTK.Mathematics.Vector3(1f, 0f, 0f));
+                    _crossOverlayMesh.Render();
+                    break;
+            }
+
+            GL.Enable(EnableCap.DepthTest);
         }
     }
 }

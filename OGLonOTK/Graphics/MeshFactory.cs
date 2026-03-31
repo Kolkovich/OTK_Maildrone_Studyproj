@@ -114,5 +114,65 @@ namespace OGLonOTK.Graphics
 
             return (vertices.ToArray(), indices.ToArray());
         }
+
+        public static (float[] vertices, uint[] indices) CreateCircle2D(float radius, int segments)
+        {
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+
+            vertices.Add(0f);
+            vertices.Add(0f);
+
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = i / (float)segments * MathF.PI * 2f;
+                float x = MathF.Cos(angle) * radius;
+                float y = MathF.Sin(angle) * radius;
+
+                vertices.Add(x);
+                vertices.Add(y);
+            }
+
+            for (uint i = 1; i <= segments; i++)
+            {
+                indices.Add(0);
+                indices.Add(i);
+                indices.Add(i + 1);
+            }
+
+            return (vertices.ToArray(), indices.ToArray());
+        }
+
+        public static (float[] vertices, uint[] indices) CreateCross2D(float halfLength, float halfThickness)
+        {
+            float d = halfLength;
+            float t = halfThickness;
+
+            float[] vertices =
+            {
+                // Первая диагональ
+                -d, -d + t,
+                -d + t, -d,
+                d,  d - t,
+                d - t,  d,
+
+                // Вторая диагональ
+                -d,  d - t,
+                -d + t,  d,
+                d, -d + t,
+                d - t, -d
+            };
+
+            uint[] indices =
+            {
+                0, 1, 2,
+                2, 3, 0,
+
+                4, 5, 6,
+                6, 7, 4
+            };
+
+            return (vertices, indices);
+        }
     }
 }

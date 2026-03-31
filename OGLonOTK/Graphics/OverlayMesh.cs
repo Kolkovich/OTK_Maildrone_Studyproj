@@ -30,11 +30,8 @@ namespace OGLonOTK.Graphics
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, _ebo);
             GL.BufferData(BufferTarget.ElementArrayBuffer, _indices.Length * sizeof(uint), _indices, BufferUsageHint.StaticDraw);
 
-            GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 0);
+            GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 2 * sizeof(float), 0);
             GL.EnableVertexAttribArray(0);
-
-            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 5 * sizeof(float), 2 * sizeof(float));
-            GL.EnableVertexAttribArray(1);
 
             GL.BindVertexArray(0);
         }
