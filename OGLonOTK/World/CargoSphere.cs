@@ -1,18 +1,26 @@
-﻿using OGLonOTK.Graphics;
-using OGLonOTK.World;
-using OpenTK.Mathematics;
+﻿using OpenTK.Mathematics;
+using OGLonOTK.Graphics;
 
-public class CargoSphere : GameObject
+namespace OGLonOTK.World
 {
-    public Vector3 Velocity { get; set; } = Vector3.Zero;
-    public float Radius { get; }
-    public bool IsGrounded { get; set; }
-
-    public float Gravity { get; set; } = 9.81f;
-    public float HorizontalDamping { get; set; } = 0.95f;
-
-    public CargoSphere(Mesh mesh, Shader shader, float radius) : base(mesh, shader)
+    public class CargoSphere : GameObject
     {
-        Radius = radius;
+        public Vector3 Velocity { get; set; } = Vector3.Zero;
+        public float Radius { get; }
+        public bool IsGrounded { get; set; }
+
+        public float Gravity { get; set; } = 9.81f;
+        public float GroundDamping { get; set; } = 0.92f;
+        public float AirDamping { get; set; } = 0.99f;
+
+        public CargoSphere(Mesh mesh, Shader shader, float radius) : base(mesh, shader)
+        {
+            Radius = radius;
+        }
+
+        public void AddImpulse(Vector3 impulse)
+        {
+            Velocity += impulse;
+        }
     }
 }

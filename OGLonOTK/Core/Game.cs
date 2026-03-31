@@ -172,6 +172,7 @@ namespace OGLonOTK.Core
 
             MoveDroneWithCollision(movement);
 
+            HandleDroneCargoInteraction();
             UpdateCargoSphere(dt);
 
             Vector3 cameraForward = _drone.GetForward();
@@ -374,11 +375,43 @@ namespace OGLonOTK.Core
         {
             _cargoSphere.IsGrounded = false;
 
-            var velocity = _cargoSphere.Velocity;
+            Vector3 position = _cargoSphere.Position;
+            Vector3 velocity = _cargoSphere.Velocity;
 
             velocity.Y -= _cargoSphere.Gravity * dt;
 
-            Vector3 newPosition = _cargoSphere.Position + velocity * dt;
+            // Движение по X
+            if (velocity.X != 0f)
+            {
+                Vector3 newPositionX = position + new Vector3(velocity.X * dt, 0f, 0f);
+
+                if (!CargoSphereCollidesWithObstacles(newPositionX))
+                {
+                    position = newPositionX;
+                }
+                else
+                {
+                    velocity.X = 0f;
+                }
+            }
+
+            // Движение по Z
+            if (velocity.Z != 0f)
+            {
+                Vector3 newPositionZ = position + new Vector3(0f, 0f, velocity.Z * dt);
+
+                if (!CargoSphereCollidesWithObstacles(newPositionZ))
+                {
+                    position = newPositionZ;
+                }
+                else
+                {
+                    velocity.Z = 0f;
+                }
+            }
+
+            // Движение по Y
+            Vector3 newPositionY = position + new Vector3(0f, velocity.Y * dt, 0f);
 
             float bestSupportY = float.NegativeInfinity;
             bool foundSupport = false;
@@ -390,15 +423,15 @@ namespace OGLonOTK.Core
                 float supportMinZ = support.Position.Z - support.Scale.Z / 2.0f;
                 float supportMaxZ = support.Position.Z + support.Scale.Z / 2.0f;
 
-                bool insideX = newPosition.X >= supportMinX && newPosition.X <= supportMaxX;
-                bool insideZ = newPosition.Z >= supportMinZ && newPosition.Z <= supportMaxZ;
+                bool insideX = position.X >= supportMinX && position.X <= supportMaxX;
+                bool insideZ = position.Z >= supportMinZ && position.Z <= supportMaxZ;
 
                 if (!insideX || !insideZ)
                     continue;
 
                 float supportTopY = support.Position.Y + support.Scale.Y / 2.0f;
-                float sphereBottomY = newPosition.Y - _cargoSphere.Radius;
-                float currentBottomY = _cargoSphere.Position.Y - _cargoSphere.Radius;
+                float sphereBottomY = newPositionY.Y - _cargoSphere.Radius;
+                float currentBottomY = position.Y - _cargoSphere.Radius;
 
                 bool crossingDownOntoSupport =
                     currentBottomY >= supportTopY &&
@@ -413,13 +446,84 @@ namespace OGLonOTK.Core
 
             if (foundSupport)
             {
-                newPosition.Y = bestSupportY + _cargoSphere.Radius;
-                velocity.Y = 0.0f;
+                position.Y = bestSupportY + _cargoSphere.Radius;
+                velocity.Y = 0f;
                 _cargoSphere.IsGrounded = true;
             }
+            else
+            {
+                position = newPositionY;
+            }
 
-            _cargoSphere.Position = newPosition;
+            if (_cargoSphere.IsGrounded)
+            {
+                velocity.X *= _cargoSphere.GroundDamping;
+                velocity.Z *= _cargoSphere.GroundDamping;
+
+                if (MathF.Abs(velocity.X) < 0.01f) velocity.X = 0f;
+                if (MathF.Abs(velocity.Z) < 0.01f) velocity.Z = 0f;
+            }
+            else
+            {
+                velocity.X *= _cargoSphere.AirDamping;
+                velocity.Z *= _cargoSphere.AirDamping;
+            }
+
+            _cargoSphere.Position = position;
             _cargoSphere.Velocity = velocity;
+        }
+
+        private void HandleDroneCargoInteraction()
+        {
+            Vector3 offset = _cargoSphere.Position - _drone.Position;
+
+            float distance = offset.Length;
+            float contactDistance = 0.9f;
+
+            if (distance > 0.001f && distance < contactDistance)
+            {
+                Vector3 pushDirection = Vector3.Normalize(offset);
+
+                Vector3 droneHorizontalVelocity = _drone.GetForward() * _drone.MoveSpeed;
+                Vector3 impulse = new Vector3(pushDirection.X, 0f, pushDirection.Z) * 2.0f;
+
+                if (droneHorizontalVelocity.LengthSquared > 0.001f)
+                {
+                    impulse += new Vector3(droneHorizontalVelocity.X, 0f, droneHorizontalVelocity.Z) * 0.35f;
+                }
+
+                _cargoSphere.AddImpulse(impulse);
+            }
+        }
+
+        private static float Clamp(float value, float min, float max)
+        {
+            return MathF.Max(min, MathF.Min(max, value));
+        }
+
+        private bool SphereIntersectsAabb(Vector3 sphereCenter, float sphereRadius, Aabb aabb)
+        {
+            float closestX = Clamp(sphereCenter.X, aabb.Min.X, aabb.Max.X);
+            float closestY = Clamp(sphereCenter.Y, aabb.Min.Y, aabb.Max.Y);
+            float closestZ = Clamp(sphereCenter.Z, aabb.Min.Z, aabb.Max.Z);
+
+            Vector3 closestPoint = new Vector3(closestX, closestY, closestZ);
+            Vector3 difference = sphereCenter - closestPoint;
+
+            return difference.LengthSquared < sphereRadius * sphereRadius;
+        }
+
+        private bool CargoSphereCollidesWithObstacles(Vector3 sphereCenter)
+        {
+            foreach (var obstacle in _obstacles)
+            {
+                if (SphereIntersectsAabb(sphereCenter, _cargoSphere.Radius, obstacle.GetAabb()))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
