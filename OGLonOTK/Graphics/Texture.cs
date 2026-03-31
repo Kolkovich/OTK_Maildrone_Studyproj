@@ -21,21 +21,30 @@ namespace OGLonOTK.Graphics
 
             StbImage.stbi_set_flip_vertically_on_load(1);
 
-            using var stream = File.OpenRead(path);
-            var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+            string fullPath = Path.GetFullPath(path);
 
-            GL.TexImage2D(
-                TextureTarget.Texture2D,
-                0,
-                PixelInternalFormat.Rgba,
-                image.Width,
-                image.Height,
-                0,
-                PixelFormat.Rgba,
-                PixelType.UnsignedByte,
-                image.Data);
+            try
+            {
+                using var stream = File.OpenRead(path);
+                var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
 
-            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+                GL.TexImage2D(
+                    TextureTarget.Texture2D,
+                    0,
+                    PixelInternalFormat.Rgba,
+                    image.Width,
+                    image.Height,
+                    0,
+                    PixelFormat.Rgba,
+                    PixelType.UnsignedByte,
+                    image.Data);
+
+                GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to load texture: {fullPath}", ex);
+            }
         }
 
         public void Use(TextureUnit unit = TextureUnit.Texture0)

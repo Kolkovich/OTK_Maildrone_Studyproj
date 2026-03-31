@@ -27,7 +27,10 @@ namespace OGLonOTK.Core
         private CargoSphere _cargoSphere;
         private GameObject _block1; // Отдельно чтобы не искать среди sceneObjects
         private Shader _texturedShader;
-        private Texture _wallTexture;
+        private Texture _wallTexture; // Надо бы завести словарь что ли для текстур...
+        private Texture _floorTexture;
+        private Texture _pillarTexture;
+        private Texture _blockTexture;
         private TexturedMesh _texturedCubeMesh;
 
         // временные показатели
@@ -68,6 +71,9 @@ namespace OGLonOTK.Core
 
             _texturedShader = new Shader("Shaders/textured.vert", "Shaders/textured.frag");
             _wallTexture = new Texture("Textures/wall.png");
+            _floorTexture = new Texture("Textures/desertstone.png");
+            _pillarTexture = new Texture("Textures/wood.png");
+            _blockTexture = new Texture("Textures/stone.png");
 
             var (texturedVertices, texturedIndices) = MeshFactory.CreateTexturedCubeVertices(4.0f);
             _texturedCubeMesh = new TexturedMesh(texturedVertices, texturedIndices);
@@ -363,27 +369,6 @@ namespace OGLonOTK.Core
                 Rotation = Vector3.Zero
             };
 
-            var texturedWallLeft = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
-            {
-                Position = wallLeft.Position,
-                Scale = wallLeft.Scale,
-                Rotation = wallLeft.Rotation
-            };
-
-            var texturedWallRight = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
-            {
-                Position = wallRight.Position,
-                Scale = wallRight.Scale,
-                Rotation = wallRight.Rotation
-            };
-
-            var texturedWallBack = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
-            {
-                Position = wallBack.Position,
-                Scale = wallBack.Scale,
-                Rotation = wallBack.Rotation
-            };
-
             var pillar1 = new GameObject(_cubeMesh, _shader)
             {
                 Position = new Vector3(-4.0f, 1.0f, -3.0f),
@@ -405,14 +390,62 @@ namespace OGLonOTK.Core
                 Rotation = Vector3.Zero
             };
 
-            _sceneObjects.Add(floor);
-            _sceneObjects.Add(pillar1);
-            _sceneObjects.Add(pillar2);
-            _sceneObjects.Add(_block1);
+            var texturedFloor = new TexturedObject(_texturedCubeMesh, _texturedShader, _floorTexture)
+            {
+                Position = floor.Position,
+                Scale = floor.Scale,
+                Rotation = floor.Rotation
+            };
 
+            var texturedWallLeft = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
+            {
+                Position = wallLeft.Position,
+                Scale = wallLeft.Scale,
+                Rotation = wallLeft.Rotation
+            };
+
+            var texturedWallRight = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
+            {
+                Position = wallRight.Position,
+                Scale = wallRight.Scale,
+                Rotation = wallRight.Rotation
+            };
+
+            var texturedWallBack = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
+            {
+                Position = wallBack.Position,
+                Scale = wallBack.Scale,
+                Rotation = wallBack.Rotation
+            };
+
+            var texturedPillar1 = new TexturedObject(_texturedCubeMesh, _texturedShader, _pillarTexture)
+            {
+                Position = pillar1.Position,
+                Scale = pillar1.Scale,
+                Rotation = pillar1.Rotation
+            };
+
+            var texturedPillar2 = new TexturedObject(_texturedCubeMesh, _texturedShader, _pillarTexture)
+            {
+                Position = pillar2.Position,
+                Scale = pillar2.Scale,
+                Rotation = pillar2.Rotation
+            };
+
+            var texturedBlock1 = new TexturedObject(_texturedCubeMesh, _texturedShader, _blockTexture)
+            {
+                Position = _block1.Position,
+                Scale = _block1.Scale,
+                Rotation = _block1.Rotation
+            };
+
+            _texturedSceneObjects.Add(texturedFloor);
             _texturedSceneObjects.Add(texturedWallLeft);
             _texturedSceneObjects.Add(texturedWallRight);
             _texturedSceneObjects.Add(texturedWallBack);
+            _texturedSceneObjects.Add(texturedPillar1);
+            _texturedSceneObjects.Add(texturedPillar2);
+            _texturedSceneObjects.Add(texturedBlock1);
 
             _obstacles.Add(wallLeft);
             _obstacles.Add(wallRight);

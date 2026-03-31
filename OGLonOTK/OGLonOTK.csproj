@@ -37,6 +37,15 @@
 		</None>
 		<None Update="Textures\wall.png">
 		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	</None>
+		</None>
+		<None Update="Textures\stone.png">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="Textures\desertstone.png">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="Textures\wood.png">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 </Project>
