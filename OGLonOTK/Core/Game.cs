@@ -23,6 +23,7 @@ namespace OGLonOTK.Core
         private Mesh _sphereMesh;
         private CargoSphere _cargoSphere;
         private GameObject _block1; // Отдельно чтобы не искать среди sceneObjects
+        private float _cargoReleaseCooldown = 0f;
 
         private Vector2 _lastMousePosition;
         private bool _firstMove = true;
@@ -108,6 +109,14 @@ namespace OGLonOTK.Core
             float dt = (float)e.Time;
             var input = KeyboardState;
 
+            // Часть костыля убирания скорости вперёд у груза из ниоткуда при его отпускании
+            if (_cargoReleaseCooldown > 0f)
+            {
+                _cargoReleaseCooldown -= dt;
+                if (_cargoReleaseCooldown < 0f)
+                    _cargoReleaseCooldown = 0f;
+            }
+
             if (input.IsKeyDown(Keys.Escape))
             {
                 Close();
@@ -184,7 +193,11 @@ namespace OGLonOTK.Core
             }
             else
             {
-                HandleDroneCargoInteraction();
+                if (_cargoReleaseCooldown <= 0f)
+                {
+                    HandleDroneCargoInteraction();
+                }
+
                 UpdateCargoSphere(dt);
             }
 
@@ -541,11 +554,24 @@ namespace OGLonOTK.Core
 
         private bool CanAttachCargo()
         {
-            Vector3 offset = _cargoSphere.Position - _drone.Position;
-            float distance = offset.Length;
+            Vector3 grabPoint = GetDroneGrabPoint();
+            Vector3 cargoPos = _cargoSphere.Position;
 
-            float attachDistance = 1.5f;
-            return distance <= attachDistance;
+            Vector2 grabXZ = new Vector2(grabPoint.X, grabPoint.Z);
+            Vector2 cargoXZ = new Vector2(cargoPos.X, cargoPos.Z);
+
+            float horizontalDistance = (grabXZ - cargoXZ).Length;
+            float verticalOffset = grabPoint.Y - cargoPos.Y;
+
+            float maxHorizontalDistance = 0.85f;
+            float minVerticalOffset = -0.15f;
+            float maxVerticalOffset = 0.60f;
+
+            bool closeEnoughHorizontally = horizontalDistance <= maxHorizontalDistance;
+            bool goodVerticalAlignment = verticalOffset >= minVerticalOffset && verticalOffset <= maxVerticalOffset;
+            bool droneAboveCargo = _drone.Position.Y > cargoPos.Y;
+
+            return closeEnoughHorizontally && goodVerticalAlignment && droneAboveCargo;
         }
 
         private void ToggleCargoAttachment()
@@ -555,10 +581,11 @@ namespace OGLonOTK.Core
                 _cargoSphere.IsAttached = false;
                 _cargoSphere.IsGrounded = false;
                 _cargoSphere.Velocity = Vector3.Zero;
+                _cargoReleaseCooldown = 0.15f; // костыль против скорости груза при отпускании
                 return;
             }
 
-            if (CanAttachCargo())
+            if (_cargoReleaseCooldown <= 0f && CanAttachCargo())
             {
                 _cargoSphere.IsAttached = true;
                 _cargoSphere.Velocity = Vector3.Zero;
@@ -568,16 +595,16 @@ namespace OGLonOTK.Core
 
         private void UpdateAttachedCargo()
         {
-            Vector3 forward = _drone.GetForward();
+            Vector3 grabPoint = GetDroneGrabPoint();
 
-            Vector3 targetPosition =
-                _drone.Position
-                + _cargoSphere.AttachOffset
-                + forward * 0.4f;
-
-            _cargoSphere.Position = targetPosition;
+            _cargoSphere.Position = grabPoint - new Vector3(0f, _cargoSphere.Radius, 0f);
             _cargoSphere.Velocity = Vector3.Zero;
             _cargoSphere.IsGrounded = false;
+        }
+
+        private Vector3 GetDroneGrabPoint()
+        {
+            return _drone.Position + new Vector3(0f, -0.35f, 0f);
         }
     }
 }
