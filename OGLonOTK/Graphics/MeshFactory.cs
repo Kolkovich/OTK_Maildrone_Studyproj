@@ -174,5 +174,64 @@ namespace OGLonOTK.Graphics
 
             return (vertices, indices);
         }
+
+        public static (float[] vertices, uint[] indices) CreateTexturedCubeVertices(float uvScale = 1.0f)
+        {
+            float u0 = 0f;
+            float v0 = 0f;
+            float u1 = uvScale;
+            float v1 = uvScale;
+
+            float[] vertices =
+            {
+        // Front
+        -0.5f, -0.5f,  0.5f,   u0, v0,
+         0.5f, -0.5f,  0.5f,   u1, v0,
+         0.5f,  0.5f,  0.5f,   u1, v1,
+        -0.5f,  0.5f,  0.5f,   u0, v1,
+
+        // Back
+        -0.5f, -0.5f, -0.5f,   u1, v0,
+         0.5f, -0.5f, -0.5f,   u0, v0,
+         0.5f,  0.5f, -0.5f,   u0, v1,
+        -0.5f,  0.5f, -0.5f,   u1, v1,
+
+        // Left
+        -0.5f, -0.5f, -0.5f,   u0, v0,
+        -0.5f, -0.5f,  0.5f,   u1, v0,
+        -0.5f,  0.5f,  0.5f,   u1, v1,
+        -0.5f,  0.5f, -0.5f,   u0, v1,
+
+        // Right
+         0.5f, -0.5f, -0.5f,   u1, v0,
+         0.5f, -0.5f,  0.5f,   u0, v0,
+         0.5f,  0.5f,  0.5f,   u0, v1,
+         0.5f,  0.5f, -0.5f,   u1, v1,
+
+        // Top
+        -0.5f,  0.5f, -0.5f,   u0, v1,
+        -0.5f,  0.5f,  0.5f,   u0, v0,
+         0.5f,  0.5f,  0.5f,   u1, v0,
+         0.5f,  0.5f, -0.5f,   u1, v1,
+
+        // Bottom
+        -0.5f, -0.5f, -0.5f,   u0, v0,
+        -0.5f, -0.5f,  0.5f,   u0, v1,
+         0.5f, -0.5f,  0.5f,   u1, v1,
+         0.5f, -0.5f, -0.5f,   u1, v0
+    };
+
+            uint[] indices =
+            {
+        0, 1, 2,  2, 3, 0,
+        4, 5, 6,  6, 7, 4,
+        8, 9, 10, 10, 11, 8,
+        12, 13, 14, 14, 15, 12,
+        16, 17, 18, 18, 19, 16,
+        20, 21, 22, 22, 23, 20
+    };
+
+            return (vertices, indices);
+        }
     }
 }

@@ -25,9 +25,16 @@ namespace OGLonOTK.Core
         private Mesh _sphereMesh;
         private CargoSphere _cargoSphere;
         private GameObject _block1; // Отдельно чтобы не искать среди sceneObjects
+        private Shader _texturedShader;
+        private Texture _wallTexture;
+        private TexturedMesh _texturedCubeMesh;
+        private TexturedObject _testWall;
+
         // временные показатели
         private float _cargoReleaseCooldown = 0f;
         private float _cargoLostIndicatorTimer = 0f;
+        private float _droneInnerAngularVelocity = 0f;
+
         private Mesh _importedDroneBodyMesh;
         private DronePart _droneInnerBodyPart;
 
@@ -111,6 +118,20 @@ namespace OGLonOTK.Core
             _crossOverlayMesh.Load();
 
             _camera = new Camera(new Vector3(0.0f, 2.0f, 5.0f));
+
+            _texturedShader = new Shader("Shaders/textured.vert", "Shaders/textured.frag");
+            _wallTexture = new Texture("Textures/wall.png");
+
+            var (texturedVertices, texturedIndices) = MeshFactory.CreateTexturedCubeVertices(4.0f);
+            _texturedCubeMesh = new TexturedMesh(texturedVertices, texturedIndices);
+            _texturedCubeMesh.Load();
+
+            _testWall = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
+            {
+                Position = new Vector3(0.0f, 1.0f, 8.0f),
+                Scale = new Vector3(8.0f, 4.0f, 0.5f),
+                Rotation = Vector3.Zero
+            };
         }
 
         protected override void OnUpdateFrame(FrameEventArgs e)
@@ -146,6 +167,9 @@ namespace OGLonOTK.Core
             }
 
             var rotation = _drone.Rotation;
+
+            bool rotateLeft = input.IsKeyDown(Keys.Q);
+            bool rotateRight = input.IsKeyDown(Keys.E);
 
             if (input.IsKeyDown(Keys.Q))
             {
@@ -205,8 +229,14 @@ namespace OGLonOTK.Core
             float forwardAmount = Vector3.Dot(movement, forward);
             float rightAmount = Vector3.Dot(movement, right);
 
-            float signedAnimationInput = ComputeSignedHorizontalAnimationInput(forwardAmount, rightAmount);
-            UpdateDroneInnerAnimation(dt, signedAnimationInput);
+            float animationTarget = ComputeDroneAnimationTarget(
+                movement,
+                forward,
+                right,
+                rotateLeft,
+                rotateRight);
+
+            UpdateDroneInnerAnimation(dt, animationTarget);
 
             // Логика с грузом: если везётся, то не катится
             MoveDroneWithCollision(movement);
@@ -270,6 +300,8 @@ namespace OGLonOTK.Core
 
             RenderCargoIndicator();
 
+            _testWall.Render(view, projection);
+
             SwapBuffers();
         }
 
@@ -289,6 +321,8 @@ namespace OGLonOTK.Core
             _importedDroneBodyMesh.Unload();
             GL.DeleteProgram(_overlayShapeShader.Handle);
             GL.DeleteProgram(_shader.Handle);
+            _texturedCubeMesh.Unload();
+            GL.DeleteProgram(_texturedShader.Handle);
 
             base.OnUnload();
         }
@@ -814,32 +848,74 @@ namespace OGLonOTK.Core
             _drone.Parts.Add(frameRight);
         }
 
-        private float ComputeSignedHorizontalAnimationInput(float forwardAmount, float rightAmount)
+        private float ComputeDroneAnimationTarget(
+            Vector3 movement,
+            Vector3 forward,
+            Vector3 right,
+            bool rotateLeft,
+            bool rotateRight)
         {
-            float bestValue = forwardAmount;
-            float bestAbs = MathF.Abs(forwardAmount);
+            float forwardAmount = Vector3.Dot(movement, forward);
+            float rightAmount = Vector3.Dot(movement, right);
+            float upAmount = movement.Y;
 
-            float leftRightRule = -rightAmount;
+            float signedInput = 0.125f;
 
-            if (MathF.Abs(leftRightRule) > bestAbs)
-            {
-                bestValue = leftRightRule;
-            }
+            // Вперёд / назад
+            signedInput += forwardAmount * 20.0f;
 
-            return bestValue;
+            // Влево / вправо
+            signedInput -= rightAmount * 20.0f;
+
+            // Вверх / вниз
+            signedInput += upAmount * 15.0f;
+
+            // Повороты Q / E
+            if (rotateLeft)
+                signedInput += 1.0f;
+
+            if (rotateRight)
+                signedInput -= 1.0f;
+
+            return signedInput;
         }
 
-        private void UpdateDroneInnerAnimation(float dt, float signedAnimationInput)
+        private void UpdateDroneInnerAnimation(float dt, float targetInput)
         {
             if (_droneInnerBodyPart == null)
                 return;
 
-            float animationSpeedFactor = 240.0f;
-            float rotationDelta = signedAnimationInput * animationSpeedFactor * dt;
+            float maxAngularSpeed = 16.0f;
+            float acceleration = 102.0f;
+            float damping = 4.0f;
+
+            float targetAngularVelocity = Clamp(targetInput, -1f, 1f) * maxAngularSpeed;
+
+            if (MathF.Abs(targetInput) > 0.001f)
+            {
+                _droneInnerAngularVelocity = MoveTowards(
+                    _droneInnerAngularVelocity,
+                    targetAngularVelocity,
+                    acceleration * dt);
+            }
+            else
+            {
+                _droneInnerAngularVelocity = MoveTowards(
+                    _droneInnerAngularVelocity,
+                    0f,
+                    damping * dt);
+            }
 
             var localRotation = _droneInnerBodyPart.LocalRotation;
-            localRotation.Y += rotationDelta;
+            localRotation.Y += _droneInnerAngularVelocity * dt;
             _droneInnerBodyPart.LocalRotation = localRotation;
+        }
+        private float MoveTowards(float current, float target, float maxDelta)
+        {
+            if (MathF.Abs(target - current) <= maxDelta)
+                return target;
+
+            return current + MathF.Sign(target - current) * maxDelta;
         }
     }
 }
