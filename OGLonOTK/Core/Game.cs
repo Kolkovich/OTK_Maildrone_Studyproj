@@ -5,6 +5,7 @@ using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using OGLonOTK.Graphics;
 using OGLonOTK.World;
+using OGLonOTK.Physics;
 
 namespace OGLonOTK.Core
 {
@@ -17,6 +18,7 @@ namespace OGLonOTK.Core
         private Shader _overlayShader;
         private OverlayMesh _overlayMesh;
         private List<GameObject> _sceneObjects = [];
+        private List<GameObject> _obstacles = [];
 
         private Vector2 _lastMousePosition;
         private bool _firstMove = true;
@@ -124,6 +126,7 @@ namespace OGLonOTK.Core
         {
             base.OnUpdateFrame(e);
 
+            float dt = (float)e.Time;
             var input = KeyboardState;
 
             if (input.IsKeyDown(Keys.Escape))
@@ -131,27 +134,77 @@ namespace OGLonOTK.Core
                 Close();
             }
 
-            _drone.Update((float)e.Time, input);
+            var rotation = _drone.Rotation;
 
-            Vector3 forward = new Vector3(
-                MathF.Sin(_drone.Rotation.Y),
-                0f,
-                MathF.Cos(_drone.Rotation.Y)
-            );
+            if (input.IsKeyDown(Keys.Q))
+            {
+                rotation.Y += _drone.RotationSpeed * dt;
+            }
 
-            forward = Vector3.Normalize(forward);
+            if (input.IsKeyDown(Keys.E))
+            {
+                rotation.Y -= _drone.RotationSpeed * dt;
+            }
+
+            _drone.Rotation = rotation;
+
+            Vector3 forward = _drone.GetForward();
+            Vector3 right = new Vector3(forward.Z, 0f, -forward.X);
+            right = Vector3.Normalize(right);
+
+            Vector3 movement = Vector3.Zero;
+
+            if (input.IsKeyDown(Keys.W))
+            {
+                movement += forward * _drone.MoveSpeed * dt;
+            }
+
+            if (input.IsKeyDown(Keys.S))
+            {
+                movement -= forward * _drone.MoveSpeed * dt;
+            }
+
+            if (input.IsKeyDown(Keys.A))
+            {
+                movement += right * _drone.MoveSpeed * dt;
+            }
+
+            if (input.IsKeyDown(Keys.D))
+            {
+                movement -= right * _drone.MoveSpeed * dt;
+            }
+
+            if (input.IsKeyDown(Keys.Space))
+            {
+                movement += Vector3.UnitY * _drone.VerticalSpeed * dt;
+            }
+
+            if (input.IsKeyDown(Keys.LeftShift))
+            {
+                movement -= Vector3.UnitY * _drone.VerticalSpeed * dt;
+            }
+
+            MoveDroneWithCollision(movement);
+
+            if (_drone.Position.Y < -0.2f)
+            {
+                var position = _drone.Position;
+                position.Y = -0.2f;
+                _drone.Position = position;
+            }
+
+            Vector3 cameraForward = _drone.GetForward();
 
             float followDistance = 5.0f;
             float followHeight = 2.0f;
 
             Vector3 targetCameraPosition =
                 _drone.Position
-                - forward * followDistance
+                - cameraForward * followDistance
                 + Vector3.UnitY * followHeight;
 
             float followSpeed = 4.0f;
-            float t = followSpeed * (float)e.Time;
-            t = MathF.Min(t, 1.0f);
+            float t = MathF.Min(followSpeed * dt, 1.0f);
 
             _camera.Position = Vector3.Lerp(_camera.Position, targetCameraPosition, t);
 
@@ -164,14 +217,7 @@ namespace OGLonOTK.Core
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            Vector3 forward = new(
-                MathF.Sin(_drone.Rotation.Y),
-                0f,
-                MathF.Cos(_drone.Rotation.Y)
-            );
-
-            forward = Vector3.Normalize(forward);
-
+            Vector3 forward = _drone.GetForward();
             float lookAheadDistance = 2.0f;
             Vector3 lookTarget = _drone.Position + forward * lookAheadDistance;
 
@@ -206,6 +252,7 @@ namespace OGLonOTK.Core
             SwapBuffers();
         }
 
+
         protected override void OnResize(ResizeEventArgs e)
         {
             base.OnResize(e);
@@ -223,9 +270,7 @@ namespace OGLonOTK.Core
         private void CreateScene()
         {
             _sceneObjects = new List<GameObject>();
-
-
-            _sceneObjects = new List<GameObject>();
+            _obstacles = new List<GameObject>();
 
             var floor = new GameObject(_cubeMesh, _shader)
             {
@@ -283,6 +328,60 @@ namespace OGLonOTK.Core
             _sceneObjects.Add(pillar1);
             _sceneObjects.Add(pillar2);
             _sceneObjects.Add(block1);
+
+            _obstacles.Add(wallLeft);
+            _obstacles.Add(wallRight);
+            _obstacles.Add(wallBack);
+            _obstacles.Add(pillar1);
+            _obstacles.Add(pillar2);
+            _obstacles.Add(block1);
+        }
+
+        private bool IsCollidingWithObstacles(Aabb droneAabb)
+        {
+            foreach (var obstacle in _obstacles)
+            {
+                if (droneAabb.Intersects(obstacle.GetAabb()))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void MoveDroneWithCollision(Vector3 movement)
+        {
+            Vector3 position = _drone.Position;
+
+            if (movement.X != 0f)
+            {
+                Vector3 newPositionX = position + new Vector3(movement.X, 0f, 0f);
+                if (!IsCollidingWithObstacles(_drone.GetAabbAt(newPositionX)))
+                {
+                    position = newPositionX;
+                }
+            }
+
+            if (movement.Y != 0f)
+            {
+                Vector3 newPositionY = position + new Vector3(0f, movement.Y, 0f);
+                if (!IsCollidingWithObstacles(_drone.GetAabbAt(newPositionY)))
+                {
+                    position = newPositionY;
+                }
+            }
+
+            if (movement.Z != 0f)
+            {
+                Vector3 newPositionZ = position + new Vector3(0f, 0f, movement.Z);
+                if (!IsCollidingWithObstacles(_drone.GetAabbAt(newPositionZ)))
+                {
+                    position = newPositionZ;
+                }
+            }
+
+            _drone.Position = position;
         }
     }
 }

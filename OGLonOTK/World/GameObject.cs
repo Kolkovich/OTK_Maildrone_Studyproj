@@ -1,12 +1,13 @@
 ﻿using OpenTK.Mathematics;
 using OGLonOTK.Graphics;
+using OGLonOTK.Physics;
 
 namespace OGLonOTK.World
 {
     public class GameObject
     {
         public Vector3 Position { get; set; } = Vector3.Zero;
-        public Vector3 Rotation { get; set; } = Vector3.Zero; // В радианах
+        public Vector3 Rotation { get; set; } = Vector3.Zero;
         public Vector3 Scale { get; set; } = Vector3.One;
 
         public Mesh Mesh { get; }
@@ -37,6 +38,18 @@ namespace OGLonOTK.World
             Shader.SetMatrix4("projection", projection);
 
             Mesh.Render();
+        }
+
+        public Aabb GetAabb()
+        {
+            Vector3 halfSize = Scale / 2.0f;
+            return new Aabb(Position - halfSize, Position + halfSize);
+        }
+
+        public Aabb GetAabbAt(Vector3 position)
+        {
+            Vector3 halfSize = Scale / 2.0f;
+            return new Aabb(position - halfSize, position + halfSize);
         }
     }
 }
