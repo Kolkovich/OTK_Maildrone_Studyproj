@@ -22,13 +22,13 @@ namespace OGLonOTK.Core
         private List<GameObject> _sceneObjects = [];
         private List<GameObject> _obstacles = []; // препятствия для дрона
         private List<GameObject> _supportObjects = []; // объекты для держания сферы
+        private List<TexturedObject> _texturedSceneObjects = []; // объекты текстурирования (так-то дублируют, но исправлю когда-нибудь "потом")
         private Mesh _sphereMesh;
         private CargoSphere _cargoSphere;
         private GameObject _block1; // Отдельно чтобы не искать среди sceneObjects
         private Shader _texturedShader;
         private Texture _wallTexture;
         private TexturedMesh _texturedCubeMesh;
-        private TexturedObject _testWall;
 
         // временные показатели
         private float _cargoReleaseCooldown = 0f;
@@ -66,6 +66,17 @@ namespace OGLonOTK.Core
             _cubeMesh = new Mesh(cubeVertices, cubeIndices);
             _cubeMesh.Load();
 
+            _texturedShader = new Shader("Shaders/textured.vert", "Shaders/textured.frag");
+            _wallTexture = new Texture("Textures/wall.png");
+
+            var (texturedVertices, texturedIndices) = MeshFactory.CreateTexturedCubeVertices(4.0f);
+            _texturedCubeMesh = new TexturedMesh(texturedVertices, texturedIndices);
+            _texturedCubeMesh.Load();
+
+            // Проверка перед CreateScene()
+            Console.WriteLine(_texturedShader == null);
+            Console.WriteLine(_wallTexture == null);
+            Console.WriteLine(_texturedCubeMesh == null);
             CreateScene();
 
             float sphereRadius = 0.4f;
@@ -119,19 +130,6 @@ namespace OGLonOTK.Core
 
             _camera = new Camera(new Vector3(0.0f, 2.0f, 5.0f));
 
-            _texturedShader = new Shader("Shaders/textured.vert", "Shaders/textured.frag");
-            _wallTexture = new Texture("Textures/wall.png");
-
-            var (texturedVertices, texturedIndices) = MeshFactory.CreateTexturedCubeVertices(4.0f);
-            _texturedCubeMesh = new TexturedMesh(texturedVertices, texturedIndices);
-            _texturedCubeMesh.Load();
-
-            _testWall = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
-            {
-                Position = new Vector3(0.0f, 1.0f, 8.0f),
-                Scale = new Vector3(8.0f, 4.0f, 0.5f),
-                Rotation = Vector3.Zero
-            };
         }
 
         protected override void OnUpdateFrame(FrameEventArgs e)
@@ -296,11 +294,14 @@ namespace OGLonOTK.Core
                 obj.Render(view, projection);
             }
 
+            foreach (var obj in _texturedSceneObjects)
+            {
+                obj.Render(view, projection);
+            }
+
             _drone.RenderComposite(view, projection);
 
             RenderCargoIndicator();
-
-            _testWall.Render(view, projection);
 
             SwapBuffers();
         }
@@ -330,6 +331,7 @@ namespace OGLonOTK.Core
         private void CreateScene()
         {
             _sceneObjects = new List<GameObject>();
+            _texturedSceneObjects = new List<TexturedObject>();
             _obstacles = new List<GameObject>();
             _supportObjects = new List<GameObject>();
 
@@ -361,6 +363,27 @@ namespace OGLonOTK.Core
                 Rotation = Vector3.Zero
             };
 
+            var texturedWallLeft = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
+            {
+                Position = wallLeft.Position,
+                Scale = wallLeft.Scale,
+                Rotation = wallLeft.Rotation
+            };
+
+            var texturedWallRight = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
+            {
+                Position = wallRight.Position,
+                Scale = wallRight.Scale,
+                Rotation = wallRight.Rotation
+            };
+
+            var texturedWallBack = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
+            {
+                Position = wallBack.Position,
+                Scale = wallBack.Scale,
+                Rotation = wallBack.Rotation
+            };
+
             var pillar1 = new GameObject(_cubeMesh, _shader)
             {
                 Position = new Vector3(-4.0f, 1.0f, -3.0f),
@@ -383,12 +406,13 @@ namespace OGLonOTK.Core
             };
 
             _sceneObjects.Add(floor);
-            _sceneObjects.Add(wallLeft);
-            _sceneObjects.Add(wallRight);
-            _sceneObjects.Add(wallBack);
             _sceneObjects.Add(pillar1);
             _sceneObjects.Add(pillar2);
             _sceneObjects.Add(_block1);
+
+            _texturedSceneObjects.Add(texturedWallLeft);
+            _texturedSceneObjects.Add(texturedWallRight);
+            _texturedSceneObjects.Add(texturedWallBack);
 
             _obstacles.Add(wallLeft);
             _obstacles.Add(wallRight);
