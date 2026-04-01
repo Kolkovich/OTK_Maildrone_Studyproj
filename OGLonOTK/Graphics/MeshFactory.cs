@@ -233,5 +233,127 @@ namespace OGLonOTK.Graphics
 
             return (vertices, indices);
         }
+
+        // Всё что ниже для поверхности вращения
+
+        private static Vector2 CatmullRom(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, float t)
+        {
+            float t2 = t * t;
+            float t3 = t2 * t;
+
+            return 0.5f * (
+                (2f * p1) +
+                (-p0 + p2) * t +
+                (2f * p0 - 5f * p1 + 4f * p2 - p3) * t2 +
+                (-p0 + 3f * p1 - 3f * p2 + p3) * t3
+            );
+        }
+
+        private static List<Vector2> SampleCatmullRomCurve(List<Vector2> controlPoints, int samplesPerSegment)
+        {
+            var result = new List<Vector2>();
+
+            if (controlPoints.Count < 4)
+                throw new ArgumentException("Need at least 4 control points for Catmull-Rom spline.");
+
+            for (int i = 0; i <= controlPoints.Count - 4; i++)
+            {
+                Vector2 p0 = controlPoints[i];
+                Vector2 p1 = controlPoints[i + 1];
+                Vector2 p2 = controlPoints[i + 2];
+                Vector2 p3 = controlPoints[i + 3];
+
+                for (int s = 0; s < samplesPerSegment; s++)
+                {
+                    float t = s / (float)samplesPerSegment;
+                    Vector2 point = CatmullRom(p0, p1, p2, p3, t);
+
+                    if (point.X < 0f)
+                        point.X = 0f;
+
+                    result.Add(point);
+                }
+            }
+
+            result.Add(controlPoints[controlPoints.Count - 2]);
+
+            return result;
+        }
+
+        public static (float[] vertices, uint[] indices) CreateSurfaceOfRevolution(
+    List<Vector2> controlPoints,
+    int samplesPerSegment,
+    int radialSegments,
+    Vector3 color)
+        {
+            var curve = SampleCatmullRomCurve(controlPoints, samplesPerSegment);
+
+            var vertices = new List<float>();
+            var indices = new List<uint>();
+
+            for (int i = 0; i < curve.Count; i++)
+            {
+                float radius = curve[i].X;
+                float y = curve[i].Y;
+
+                for (int j = 0; j <= radialSegments; j++)
+                {
+                    float angle = j / (float)radialSegments * MathF.PI * 2f;
+
+                    float x = radius * MathF.Cos(angle);
+                    float z = radius * MathF.Sin(angle);
+
+                    vertices.Add(x);
+                    vertices.Add(y);
+                    vertices.Add(z);
+
+                    vertices.Add(color.X);
+                    vertices.Add(color.Y);
+                    vertices.Add(color.Z);
+                }
+            }
+
+            int ringSize = radialSegments + 1;
+
+            for (int i = 0; i < curve.Count - 1; i++)
+            {
+                for (int j = 0; j < radialSegments; j++)
+                {
+                    uint current = (uint)(i * ringSize + j);
+                    uint next = (uint)((i + 1) * ringSize + j);
+
+                    indices.Add(current);
+                    indices.Add(next);
+                    indices.Add(current + 1);
+
+                    indices.Add(current + 1);
+                    indices.Add(next);
+                    indices.Add(next + 1);
+                }
+            }
+
+            return (vertices.ToArray(), indices.ToArray());
+        }
+
+        // Спрайтовое
+        public static (float[] vertices, uint[] indices) CreateTexturedQuad()
+        {
+            float[] vertices =
+            {
+        // x, y, z,  u, v
+        -0.5f, -0.5f, 0f,  0f, 0f,
+         0.5f, -0.5f, 0f,  1f, 0f,
+         0.5f,  0.5f, 0f,  1f, 1f,
+        -0.5f,  0.5f, 0f,  0f, 1f
+    };
+
+            uint[] indices =
+            {
+        0, 1, 2,
+        2, 3, 0
+    };
+
+            return (vertices, indices);
+        }
     }
 }

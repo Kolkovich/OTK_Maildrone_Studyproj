@@ -48,6 +48,13 @@ namespace OGLonOTK.Core
         private Texture _stoneTexture;
         private List<TexturedDronePart> _droneTexturedInnerParts = []; // части дрона, на будущее
 
+        private Mesh _revolutionMesh;
+        private GameObject _revolutionObject;
+        private Shader _billboardShader;
+        private Texture _markerTexture;
+        private TexturedMesh _billboardMesh;
+        private BillboardObject _revolutionMarker;
+
         private Vector2 _lastMousePosition;
         private bool _firstMove = true;
 
@@ -69,6 +76,8 @@ namespace OGLonOTK.Core
 
             GL.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
             GL.Enable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
             _shader = new Shader("Shaders/shader.vert", "Shaders/shader.frag");
 
@@ -133,6 +142,49 @@ namespace OGLonOTK.Core
             Console.WriteLine(_wallTexture == null);
             Console.WriteLine(_texturedCubeMesh == null);
             CreateScene();
+
+            // Поверхность вращения
+            var controlPoints = new List<Vector2>
+            {
+                new Vector2(0.0f, 0.0f),
+                new Vector2(0.25f, 0.2f),
+                new Vector2(0.55f, 0.8f),
+                new Vector2(0.35f, 1.3f),
+                new Vector2(0.6f, 1.9f),
+                new Vector2(0.2f, 2.4f)
+            };
+
+            var (revolutionVertices, revolutionIndices) = MeshFactory.CreateSurfaceOfRevolution(
+                controlPoints,
+                samplesPerSegment: 12,
+                radialSegments: 32,
+                color: new Vector3(0.8f, 0.4f, 0.2f));
+
+            _revolutionMesh = new Mesh(revolutionVertices, revolutionIndices);
+            _revolutionMesh.Load();
+
+            _revolutionObject = new GameObject(_revolutionMesh, _shader)
+            {
+                Position = new Vector3(0.0f, 0.0f, 36.0f),
+                Rotation = Vector3.Zero,
+                Scale = Vector3.One
+            };
+
+            _sceneObjects.Add(_revolutionObject);
+
+            // Указатель спрайтовый
+            _billboardShader = new Shader("Shaders/billboard.vert", "Shaders/billboard.frag");
+            _markerTexture = new Texture("Textures/marker.png");
+
+            var (quadVertices, quadIndices) = MeshFactory.CreateTexturedQuad();
+            _billboardMesh = new TexturedMesh(quadVertices, quadIndices);
+            _billboardMesh.Load();
+
+            _revolutionMarker = new BillboardObject(_billboardMesh, _billboardShader, _markerTexture)
+            {
+                Position = _revolutionObject.Position + new Vector3(0f, 3.0f, 0f),
+                Size = new Vector2(1.2f, 1.2f)
+            };
 
             float sphereRadius = 0.4f;
 
@@ -365,6 +417,8 @@ namespace OGLonOTK.Core
 
             RenderCargoIndicator();
 
+            _revolutionMarker.Render(view, projection, _camera.Position);
+
             SwapBuffers();
         }
 
@@ -389,6 +443,10 @@ namespace OGLonOTK.Core
             _floorTexturedCubeMesh.Unload();
             _objectTexturedCubeMesh.Unload();
             GL.DeleteProgram(_texturedShader.Handle);
+            _revolutionMesh.Unload();
+            _billboardMesh.Unload();
+            GL.DeleteProgram(_billboardShader.Handle);
+
 
             foreach (var part in _droneTexturedInnerParts)
             {
