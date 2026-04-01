@@ -20,6 +20,7 @@ namespace OGLonOTK
         public MainWindow()
         {
             InitializeComponent();
+            TB.Text = "Управление следующее:\n\n   WASD - движение камеры/дрона по осям X/Z\n   Q/E - поворот дрона\n   Shift/Space - опустить/поднять камеру/дрона\n   F - захват груза\n   B - в(ы)ключить блюр\n   F1/2/3 - Переключение режима камеры: Следование/Орбита/Свободная камера\n   ESC - выход из игрового окна";
         }
 
         private void Button_Click(object sender, RoutedEventArgs e)
