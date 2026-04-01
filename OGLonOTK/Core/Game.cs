@@ -69,6 +69,15 @@ namespace OGLonOTK.Core
         private bool _firstMouseMove = true;
         private float _mouseSensitivity = 0.2f;
 
+        private int _postProcessFbo;
+        private int _postProcessColorTexture;
+        private int _postProcessRbo;
+
+        private Shader _postProcessShader;
+        private TexturedMesh _screenQuadMesh;
+
+        private bool _blurEnabled = false;
+
         public Game(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
             : base(gameWindowSettings, nativeWindowSettings)
         {
@@ -253,6 +262,14 @@ namespace OGLonOTK.Core
             _camera = new Camera(new Vector3(0.0f, 2.0f, 5.0f));
 
             SetCursorCaptured(false);
+
+            _postProcessShader = new Shader("Shaders/postprocess.vert", "Shaders/postprocess.frag");
+
+            var (screenQuadVertices, screenQuadIndices) = MeshFactory.CreateFullscreenQuad();
+            _screenQuadMesh = new TexturedMesh(screenQuadVertices, screenQuadIndices);
+            _screenQuadMesh.Load();
+
+            CreatePostProcessFramebuffer(Size.X, Size.Y);
         }
 
         protected override void OnUpdateFrame(FrameEventArgs e)
@@ -280,6 +297,11 @@ namespace OGLonOTK.Core
             if (input.IsKeyDown(Keys.Escape))
             {
                 Close();
+            }
+
+            if (input.IsKeyPressed(Keys.B))
+            {
+                _blurEnabled = !_blurEnabled;
             }
 
             if (input.IsKeyPressed(Keys.F1))
@@ -410,10 +432,12 @@ namespace OGLonOTK.Core
         {
             base.OnRenderFrame(e);
 
+            // 1. Рендер сцены в framebuffer
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _postProcessFbo);
+            GL.Enable(EnableCap.DepthTest);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             Matrix4 view;
-
             switch (_cameraMode)
             {
                 case CameraMode.Follow:
@@ -445,29 +469,41 @@ namespace OGLonOTK.Core
                 100.0f);
 
             foreach (var obj in _sceneObjects)
-            {
                 obj.Render(view, projection);
-            }
 
             foreach (var obj in _texturedSceneObjects)
-            {
                 obj.Render(view, projection);
-            }
 
             _drone.RenderComposite(view, projection);
 
             Matrix4 droneModel = _drone.GetModelMatrix();
-
             foreach (var part in _droneTexturedInnerParts)
-            {
                 part.Render(droneModel, view, projection);
-            }
 
             RenderParticles(view, projection);
-
-            RenderCargoIndicator();
-
             _revolutionMarker.Render(view, projection, _camera.Position);
+
+            // Если хочешь, overlay можно рендерить уже ПОСЛЕ blur, на экран.
+            // Тогда индикатор не будет размываться.
+
+            // 2. Рендер fullscreen quad в экран
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            GL.Disable(EnableCap.DepthTest);
+            GL.Clear(ClearBufferMask.ColorBufferBit);
+
+            _postProcessShader.Use();
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, _postProcessColorTexture);
+
+            _postProcessShader.SetInt("screenTexture", 0);
+            _postProcessShader.SetBool("blurEnabled", _blurEnabled);
+            _postProcessShader.SetVector2("texelSize", new Vector2(1f / Size.X, 1f / Size.Y));
+
+            _screenQuadMesh.Render();
+
+            // 3. Overlay поверх уже обработанного изображения
+            RenderCargoIndicator();
 
             SwapBuffers();
         }
@@ -477,6 +513,7 @@ namespace OGLonOTK.Core
         {
             base.OnResize(e);
             GL.Viewport(0, 0, Size.X, Size.Y);
+            CreatePostProcessFramebuffer(Size.X, Size.Y);
         }
 
         protected override void OnUnload()
@@ -496,7 +533,15 @@ namespace OGLonOTK.Core
             _revolutionMesh.Unload();
             _billboardMesh.Unload();
             GL.DeleteProgram(_billboardShader.Handle);
+            _screenQuadMesh.Unload();
+            GL.DeleteProgram(_postProcessShader.Handle);
 
+            if (_postProcessFbo != 0)
+            {
+                GL.DeleteFramebuffer(_postProcessFbo);
+                GL.DeleteTexture(_postProcessColorTexture);
+                GL.DeleteRenderbuffer(_postProcessRbo);
+            }
 
             foreach (var part in _droneTexturedInnerParts)
             {
@@ -1297,6 +1342,60 @@ namespace OGLonOTK.Core
 
             if (input.IsKeyDown(Keys.LeftShift))
                 _camera.Position -= Vector3.UnitY * _camera.Speed * dt;
+        }
+
+        private void CreatePostProcessFramebuffer(int width, int height)
+        {
+            if (_postProcessFbo != 0)
+            {
+                GL.DeleteFramebuffer(_postProcessFbo);
+                GL.DeleteTexture(_postProcessColorTexture);
+                GL.DeleteRenderbuffer(_postProcessRbo);
+            }
+
+            _postProcessFbo = GL.GenFramebuffer();
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _postProcessFbo);
+
+            _postProcessColorTexture = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, _postProcessColorTexture);
+            GL.TexImage2D(
+                TextureTarget.Texture2D,
+                0,
+                PixelInternalFormat.Rgb,
+                width,
+                height,
+                0,
+                PixelFormat.Rgb,
+                PixelType.UnsignedByte,
+                IntPtr.Zero);
+
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+
+            GL.FramebufferTexture2D(
+                FramebufferTarget.Framebuffer,
+                FramebufferAttachment.ColorAttachment0,
+                TextureTarget.Texture2D,
+                _postProcessColorTexture,
+                0);
+
+            _postProcessRbo = GL.GenRenderbuffer();
+            GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _postProcessRbo);
+            GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.Depth24Stencil8, width, height);
+
+            GL.FramebufferRenderbuffer(
+                FramebufferTarget.Framebuffer,
+                FramebufferAttachment.DepthStencilAttachment,
+                RenderbufferTarget.Renderbuffer,
+                _postProcessRbo);
+
+            var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferErrorCode.FramebufferComplete)
+            {
+                throw new Exception($"Framebuffer is not complete: {status}");
+            }
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         }
     }
 }

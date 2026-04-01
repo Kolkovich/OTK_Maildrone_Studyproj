@@ -355,5 +355,25 @@ namespace OGLonOTK.Graphics
 
             return (vertices, indices);
         }
+
+        public static (float[] vertices, uint[] indices) CreateFullscreenQuad()
+        {
+            float[] vertices =
+            {
+        // x, y, z,   u, v
+        -1f, -1f, 0f, 0f, 0f,
+         1f, -1f, 0f, 1f, 0f,
+         1f,  1f, 0f, 1f, 1f,
+        -1f,  1f, 0f, 0f, 1f
+    };
+
+            uint[] indices =
+            {
+        0, 1, 2,
+        2, 3, 0
+    };
+
+            return (vertices, indices);
+        }
     }
 }

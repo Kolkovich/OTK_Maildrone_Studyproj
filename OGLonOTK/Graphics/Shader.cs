@@ -136,5 +136,17 @@ namespace OGLonOTK.Graphics
             GL.UseProgram(Handle);
             GL.Uniform3(_uniformLocations[name], data);
         }
+
+        public void SetBool(string name, bool value)
+        {
+            int location = GL.GetUniformLocation(Handle, name);
+            GL.Uniform1(location, value ? 1 : 0);
+        }
+
+        public void SetVector2(string name, Vector2 value)
+        {
+            int location = GL.GetUniformLocation(Handle, name);
+            GL.Uniform2(location, value);
+        }
     }
 }
