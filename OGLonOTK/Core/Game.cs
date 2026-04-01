@@ -32,14 +32,21 @@ namespace OGLonOTK.Core
         private Texture _pillarTexture;
         private Texture _blockTexture;
         private TexturedMesh _texturedCubeMesh;
+        private TexturedMesh _wallTexturedCubeMesh;
+        private TexturedMesh _floorTexturedCubeMesh;
+        private TexturedMesh _objectTexturedCubeMesh;
 
         // временные показатели
         private float _cargoReleaseCooldown = 0f;
         private float _cargoLostIndicatorTimer = 0f;
         private float _droneInnerAngularVelocity = 0f;
+        private float _droneInnerRotationY = 0f;
 
         private Mesh _importedDroneBodyMesh;
-        private DronePart _droneInnerBodyPart;
+        private Texture _ironTexture2;
+        private Texture _ironTexture4;
+        private Texture _stoneTexture;
+        private List<TexturedDronePart> _droneTexturedInnerParts = []; // части дрона, на будущее
 
         private Vector2 _lastMousePosition;
         private bool _firstMove = true;
@@ -69,15 +76,57 @@ namespace OGLonOTK.Core
             _cubeMesh = new Mesh(cubeVertices, cubeIndices);
             _cubeMesh.Load();
 
+            var (wallVertices, wallIndices) = MeshFactory.CreateTexturedCubeVertices(4.0f);
+            _wallTexturedCubeMesh = new TexturedMesh(wallVertices, wallIndices);
+            _wallTexturedCubeMesh.Load();
+
+            var (floorVertices, floorIndices) = MeshFactory.CreateTexturedCubeVertices(9.0f);
+            _floorTexturedCubeMesh = new TexturedMesh(floorVertices, floorIndices);
+            _floorTexturedCubeMesh.Load();
+
+            var (objectVertices, objectIndices) = MeshFactory.CreateTexturedCubeVertices(0.25f);
+            _objectTexturedCubeMesh = new TexturedMesh(objectVertices, objectIndices);
+            _objectTexturedCubeMesh.Load();
+
+            var (texturedVertices, texturedIndices) = MeshFactory.CreateTexturedCubeVertices(1.0f);
+            _texturedCubeMesh = new TexturedMesh(texturedVertices, texturedIndices);
+            _texturedCubeMesh.Load();
+
             _texturedShader = new Shader("Shaders/textured.vert", "Shaders/textured.frag");
             _wallTexture = new Texture("Textures/wall.png");
             _floorTexture = new Texture("Textures/desertstone.png");
             _pillarTexture = new Texture("Textures/wood.png");
             _blockTexture = new Texture("Textures/stone.png");
 
-            var (texturedVertices, texturedIndices) = MeshFactory.CreateTexturedCubeVertices(4.0f);
-            _texturedCubeMesh = new TexturedMesh(texturedVertices, texturedIndices);
-            _texturedCubeMesh.Load();
+
+            _texturedShader = new Shader("Shaders/textured.vert", "Shaders/textured.frag");
+
+            _ironTexture2 = new Texture("Textures/IronNoRzavoeTexture_2.jpg");
+            _ironTexture4 = new Texture("Textures/IronNoRzavoeTexture_4.jpg");
+            _stoneTexture = new Texture("Textures/stone_texture.jpg");
+
+            var materialMap = new Dictionary<string, Texture>
+            {
+                { "Материал", _ironTexture2 },
+                { "Материал.001", _ironTexture4 },
+                { "Материал.002", _stoneTexture }
+            };
+
+            var subMeshes = ObjTexturedLoader.Load("Assets/Vint.obj", materialMap);
+
+            _droneTexturedInnerParts.Clear();
+
+            foreach (var subMesh in subMeshes)
+            {
+                var part = new TexturedDronePart(subMesh.Mesh, _texturedShader, subMesh.Texture)
+                {
+                    LocalPosition = Vector3.Zero,
+                    LocalRotation = Vector3.Zero,
+                    LocalScale = new Vector3(1.2f, 2.0f, 1.2f)
+                };
+
+                _droneTexturedInnerParts.Add(part);
+            }
 
             // Проверка перед CreateScene()
             Console.WriteLine(_texturedShader == null);
@@ -307,6 +356,13 @@ namespace OGLonOTK.Core
 
             _drone.RenderComposite(view, projection);
 
+            Matrix4 droneModel = _drone.GetModelMatrix();
+
+            foreach (var part in _droneTexturedInnerParts)
+            {
+                part.Render(droneModel, view, projection);
+            }
+
             RenderCargoIndicator();
 
             SwapBuffers();
@@ -329,7 +385,15 @@ namespace OGLonOTK.Core
             GL.DeleteProgram(_overlayShapeShader.Handle);
             GL.DeleteProgram(_shader.Handle);
             _texturedCubeMesh.Unload();
+            _wallTexturedCubeMesh.Unload();
+            _floorTexturedCubeMesh.Unload();
+            _objectTexturedCubeMesh.Unload();
             GL.DeleteProgram(_texturedShader.Handle);
+
+            foreach (var part in _droneTexturedInnerParts)
+            {
+                part.Mesh.Unload();
+            }
 
             base.OnUnload();
         }
@@ -390,42 +454,42 @@ namespace OGLonOTK.Core
                 Rotation = Vector3.Zero
             };
 
-            var texturedFloor = new TexturedObject(_texturedCubeMesh, _texturedShader, _floorTexture)
+            var texturedFloor = new TexturedObject(_floorTexturedCubeMesh, _texturedShader, _floorTexture)
             {
                 Position = floor.Position,
                 Scale = floor.Scale,
                 Rotation = floor.Rotation
             };
 
-            var texturedWallLeft = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
+            var texturedWallLeft = new TexturedObject(_wallTexturedCubeMesh, _texturedShader, _wallTexture)
             {
                 Position = wallLeft.Position,
                 Scale = wallLeft.Scale,
                 Rotation = wallLeft.Rotation
             };
 
-            var texturedWallRight = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
+            var texturedWallRight = new TexturedObject(_wallTexturedCubeMesh, _texturedShader, _wallTexture)
             {
                 Position = wallRight.Position,
                 Scale = wallRight.Scale,
                 Rotation = wallRight.Rotation
             };
 
-            var texturedWallBack = new TexturedObject(_texturedCubeMesh, _texturedShader, _wallTexture)
+            var texturedWallBack = new TexturedObject(_wallTexturedCubeMesh, _texturedShader, _wallTexture)
             {
                 Position = wallBack.Position,
                 Scale = wallBack.Scale,
                 Rotation = wallBack.Rotation
             };
 
-            var texturedPillar1 = new TexturedObject(_texturedCubeMesh, _texturedShader, _pillarTexture)
+            var texturedPillar1 = new TexturedObject(_objectTexturedCubeMesh, _texturedShader, _pillarTexture)
             {
                 Position = pillar1.Position,
                 Scale = pillar1.Scale,
                 Rotation = pillar1.Rotation
             };
 
-            var texturedPillar2 = new TexturedObject(_texturedCubeMesh, _texturedShader, _pillarTexture)
+            var texturedPillar2 = new TexturedObject(_objectTexturedCubeMesh, _texturedShader, _pillarTexture)
             {
                 Position = pillar2.Position,
                 Scale = pillar2.Scale,
@@ -472,6 +536,7 @@ namespace OGLonOTK.Core
 
             return false;
         }
+
 
         private void MoveDroneWithCollision(Vector3 movement)
         {
@@ -863,42 +928,39 @@ namespace OGLonOTK.Core
         {
             _drone.Parts.Clear();
 
-            _droneInnerBodyPart = new DronePart(_importedDroneBodyMesh, _shader)
-            {
-                LocalPosition = Vector3.Zero,
-                LocalScale = new Vector3(0.7f, 0.7f, 0.7f)
-            };
-
             float frameThickness = 0.12f;
-            float frameHeight = 0.36f;
+            float frameHeight = 0.24f;
             float frameOuterSize = 1.4f;
             float half = frameOuterSize / 2.0f;
 
             var frameFront = new DronePart(_cubeMesh, _shader)
             {
                 LocalPosition = new Vector3(0f, 0f, half),
+                LocalRotation = Vector3.Zero,
                 LocalScale = new Vector3(frameOuterSize, frameHeight, frameThickness)
             };
 
             var frameBack = new DronePart(_cubeMesh, _shader)
             {
                 LocalPosition = new Vector3(0f, 0f, -half),
+                LocalRotation = Vector3.Zero,
                 LocalScale = new Vector3(frameOuterSize, frameHeight, frameThickness)
             };
 
             var frameLeft = new DronePart(_cubeMesh, _shader)
             {
                 LocalPosition = new Vector3(-half, 0f, 0f),
+                LocalRotation = Vector3.Zero,
                 LocalScale = new Vector3(frameThickness, frameHeight, frameOuterSize)
             };
 
             var frameRight = new DronePart(_cubeMesh, _shader)
             {
                 LocalPosition = new Vector3(half, 0f, 0f),
+                LocalRotation = Vector3.Zero,
                 LocalScale = new Vector3(frameThickness, frameHeight, frameOuterSize)
             };
 
-            _drone.Parts.Add(_droneInnerBodyPart);
             _drone.Parts.Add(frameFront);
             _drone.Parts.Add(frameBack);
             _drone.Parts.Add(frameLeft);
@@ -939,16 +1001,14 @@ namespace OGLonOTK.Core
 
         private void UpdateDroneInnerAnimation(float dt, float targetInput)
         {
-            if (_droneInnerBodyPart == null)
-                return;
-
-            float maxAngularSpeed = 16.0f;
+            float maxAngularSpeed = 8.0f;
             float acceleration = 102.0f;
-            float damping = 4.0f;
+            float damping = 5.0f;
 
-            float targetAngularVelocity = Clamp(targetInput, -1f, 1f) * maxAngularSpeed;
+            float clampedInput = Clamp(targetInput, -1f, 1f);
+            float targetAngularVelocity = clampedInput * maxAngularSpeed;
 
-            if (MathF.Abs(targetInput) > 0.001f)
+            if (MathF.Abs(clampedInput) > 0.001f)
             {
                 _droneInnerAngularVelocity = MoveTowards(
                     _droneInnerAngularVelocity,
@@ -963,9 +1023,14 @@ namespace OGLonOTK.Core
                     damping * dt);
             }
 
-            var localRotation = _droneInnerBodyPart.LocalRotation;
-            localRotation.Y += _droneInnerAngularVelocity * dt;
-            _droneInnerBodyPart.LocalRotation = localRotation;
+            _droneInnerRotationY += _droneInnerAngularVelocity * dt;
+
+            foreach (var part in _droneTexturedInnerParts)
+            {
+                var rotation = part.LocalRotation;
+                rotation.Y = _droneInnerRotationY;
+                part.LocalRotation = rotation;
+            }
         }
         private float MoveTowards(float current, float target, float maxDelta)
         {
