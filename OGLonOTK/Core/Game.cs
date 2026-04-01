@@ -55,8 +55,19 @@ namespace OGLonOTK.Core
         private TexturedMesh _billboardMesh;
         private BillboardObject _revolutionMarker;
 
+        private List<Particle> _particles = new();
+        private Random _random = new Random();
+
+        private CameraMode _cameraMode = CameraMode.Follow;
+        private bool _cursorCaptured = false;
+
+        private float _orbitYaw = 0f;
+        private float _orbitPitch = -15f;
+        private float _orbitDistance = 6f;
+
         private Vector2 _lastMousePosition;
-        private bool _firstMove = true;
+        private bool _firstMouseMove = true;
+        private float _mouseSensitivity = 0.2f;
 
         public Game(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
             : base(gameWindowSettings, nativeWindowSettings)
@@ -68,6 +79,13 @@ namespace OGLonOTK.Core
             CanAttach,
             Attached,
             Lost
+        }
+
+        private enum CameraMode
+        {
+            Follow,
+            Orbit,
+            Free
         }
 
         protected override void OnLoad()
@@ -106,9 +124,6 @@ namespace OGLonOTK.Core
             _floorTexture = new Texture("Textures/desertstone.png");
             _pillarTexture = new Texture("Textures/wood.png");
             _blockTexture = new Texture("Textures/stone.png");
-
-
-            _texturedShader = new Shader("Shaders/textured.vert", "Shaders/textured.frag");
 
             _ironTexture2 = new Texture("Textures/IronNoRzavoeTexture_2.jpg");
             _ironTexture4 = new Texture("Textures/IronNoRzavoeTexture_4.jpg");
@@ -237,6 +252,7 @@ namespace OGLonOTK.Core
 
             _camera = new Camera(new Vector3(0.0f, 2.0f, 5.0f));
 
+            SetCursorCaptured(false);
         }
 
         protected override void OnUpdateFrame(FrameEventArgs e)
@@ -266,114 +282,126 @@ namespace OGLonOTK.Core
                 Close();
             }
 
-            if (input.IsKeyPressed(Keys.F))
+            if (input.IsKeyPressed(Keys.F1))
             {
-                ToggleCargoAttachment();
+                _cameraMode = CameraMode.Follow;
+                SetCursorCaptured(false);
             }
 
-            var rotation = _drone.Rotation;
-
-            bool rotateLeft = input.IsKeyDown(Keys.Q);
-            bool rotateRight = input.IsKeyDown(Keys.E);
-
-            if (input.IsKeyDown(Keys.Q))
+            if (input.IsKeyPressed(Keys.F2))
             {
-                rotation.Y += _drone.RotationSpeed * dt;
+                _cameraMode = CameraMode.Orbit;
+                SetCursorCaptured(true);
+                SyncOrbitCameraFromCurrentPosition();
             }
 
-            if (input.IsKeyDown(Keys.E))
+            if (input.IsKeyPressed(Keys.F3))
             {
-                rotation.Y -= _drone.RotationSpeed * dt;
+                _cameraMode = CameraMode.Free;
+                SetCursorCaptured(true);
             }
 
-            _drone.Rotation = rotation;
-
-            Vector3 forward = _drone.GetForward();
-            Vector3 right = new Vector3(forward.Z, 0f, -forward.X);
-            right = Vector3.Normalize(right);
-
-            Vector3 movement = Vector3.Zero;
-
-            if (input.IsKeyDown(Keys.W))
+            if (_cameraMode != CameraMode.Free)
             {
-                movement += forward * _drone.MoveSpeed * dt;
-            }
+                if (input.IsKeyPressed(Keys.F))
+                {
+                    ToggleCargoAttachment();
+                }
 
-            if (input.IsKeyDown(Keys.S))
-            {
-                movement -= forward * _drone.MoveSpeed * dt;
-            }
+                var rotation = _drone.Rotation;
 
-            if (input.IsKeyDown(Keys.A))
-            {
-                movement += right * _drone.MoveSpeed * dt;
-            }
+                bool rotateLeft = input.IsKeyDown(Keys.Q);
+                bool rotateRight = input.IsKeyDown(Keys.E);
 
-            if (input.IsKeyDown(Keys.D))
-            {
-                movement -= right * _drone.MoveSpeed * dt;
-            }
+                if (rotateLeft)
+                {
+                    rotation.Y += _drone.RotationSpeed * dt;
+                }
 
-            if (input.IsKeyDown(Keys.Space))
-            {
-                movement += Vector3.UnitY * _drone.VerticalSpeed * dt;
-            }
+                if (rotateRight)
+                {
+                    rotation.Y -= _drone.RotationSpeed * dt;
+                }
 
-            if (input.IsKeyDown(Keys.LeftShift))
-            {
-                movement -= Vector3.UnitY * _drone.VerticalSpeed * dt;
-            }
+                _drone.Rotation = rotation;
 
-            if (_drone.Position.Y < -0.2f)
-            {
-                var position = _drone.Position;
-                position.Y = -0.2f;
-                _drone.Position = position;
-            }
+                Vector3 forward = _drone.GetForward();
+                Vector3 right = new Vector3(forward.Z, 0f, -forward.X);
+                right = Vector3.Normalize(right);
 
-            float forwardAmount = Vector3.Dot(movement, forward);
-            float rightAmount = Vector3.Dot(movement, right);
+                Vector3 movement = Vector3.Zero;
 
-            float animationTarget = ComputeDroneAnimationTarget(
-                movement,
-                forward,
-                right,
-                rotateLeft,
-                rotateRight);
+                if (input.IsKeyDown(Keys.W))
+                    movement += forward * _drone.MoveSpeed * dt;
 
-            UpdateDroneInnerAnimation(dt, animationTarget);
+                if (input.IsKeyDown(Keys.S))
+                    movement -= forward * _drone.MoveSpeed * dt;
 
-            // Логика с грузом: если везётся, то не катится
-            MoveDroneWithCollision(movement);
+                if (input.IsKeyDown(Keys.A))
+                    movement += right * _drone.MoveSpeed * dt;
 
-            if (_cargoSphere.IsAttached)
-            {
-                UpdateAttachedCargo(dt);
+                if (input.IsKeyDown(Keys.D))
+                    movement -= right * _drone.MoveSpeed * dt;
+
+                if (input.IsKeyDown(Keys.Space))
+                    movement += Vector3.UnitY * _drone.VerticalSpeed * dt;
+
+                if (input.IsKeyDown(Keys.LeftShift))
+                    movement -= Vector3.UnitY * _drone.VerticalSpeed * dt;
+
+                if (_drone.Position.Y < -0.2f)
+                {
+                    var position = _drone.Position;
+                    position.Y = -0.2f;
+                    _drone.Position = position;
+                }
+
+                float animationTarget = ComputeDroneAnimationTarget(
+                    movement,
+                    forward,
+                    right,
+                    rotateLeft,
+                    rotateRight);
+
+                UpdateDroneInnerAnimation(dt, animationTarget);
+
+                MoveDroneWithCollision(movement);
+
+                if (_cargoSphere.IsAttached)
+                {
+                    UpdateAttachedCargo(dt);
+                }
+                else
+                {
+                    if (_cargoReleaseCooldown <= 0f)
+                    {
+                        HandleDroneCargoInteraction();
+                    }
+
+                    UpdateCargoSphere(dt);
+                }
+
+                UpdateParticles(dt);
             }
             else
             {
-                if (_cargoReleaseCooldown <= 0f)
-                {
-                    HandleDroneCargoInteraction();
-                }
-
-                UpdateCargoSphere(dt);
+                UpdateDroneInnerAnimation(dt, 0f);
             }
 
-            Vector3 cameraForward = _drone.GetForward();
+            switch (_cameraMode)
+            {
+                case CameraMode.Follow:
+                    UpdateFollowCamera(dt);
+                    break;
 
-            float followDistance = 5.0f;
-            float followHeight = 2.0f;
+                case CameraMode.Orbit:
+                    UpdateOrbitCamera();
+                    break;
 
-            Vector3 targetCameraPosition =
-                _drone.Position
-                - cameraForward * followDistance
-                + Vector3.UnitY * followHeight;
-
-            float followSpeed = 4.0f;
-            float t = MathF.Min(followSpeed * dt, 1.0f);
-
-            _camera.Position = Vector3.Lerp(_camera.Position, targetCameraPosition, t);
+                case CameraMode.Free:
+                    UpdateFreeCamera(dt, input);
+                    break;
+            }
 
             Title = $"Pos: X={_drone.Position.X:F2}, Y={_drone.Position.Y:F2}, Z={_drone.Position.Z:F2} | RotY={MathHelper.RadiansToDegrees(_drone.Rotation.Y):F1}";
         }
@@ -384,11 +412,31 @@ namespace OGLonOTK.Core
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            Vector3 forward = _drone.GetForward();
-            float lookAheadDistance = 2.0f;
-            Vector3 lookTarget = _drone.Position + forward * lookAheadDistance;
+            Matrix4 view;
 
-            var view = Matrix4.LookAt(_camera.Position, lookTarget, Vector3.UnitY);
+            switch (_cameraMode)
+            {
+                case CameraMode.Follow:
+                    {
+                        Vector3 forward = _drone.GetForward();
+                        float lookAheadDistance = 2.0f;
+                        Vector3 lookTarget = _drone.Position + forward * lookAheadDistance;
+                        view = Matrix4.LookAt(_camera.Position, lookTarget, Vector3.UnitY);
+                        break;
+                    }
+
+                case CameraMode.Orbit:
+                    view = Matrix4.LookAt(_camera.Position, _drone.Position, Vector3.UnitY);
+                    break;
+
+                case CameraMode.Free:
+                    view = _camera.GetViewMatrix();
+                    break;
+
+                default:
+                    view = _camera.GetViewMatrix();
+                    break;
+            }
 
             var projection = Matrix4.CreatePerspectiveFieldOfView(
                 MathHelper.DegreesToRadians(45f),
@@ -414,6 +462,8 @@ namespace OGLonOTK.Core
             {
                 part.Render(droneModel, view, projection);
             }
+
+            RenderParticles(view, projection);
 
             RenderCargoIndicator();
 
@@ -705,9 +755,21 @@ namespace OGLonOTK.Core
 
             if (foundSupport)
             {
+                float impactSpeed = MathF.Abs(velocity.Y);
+
                 position.Y = bestSupportY + _cargoSphere.Radius;
                 velocity.Y = 0f;
                 _cargoSphere.IsGrounded = true;
+
+                if (impactSpeed > 3.5f)
+                {
+                    Vector3 impactPosition = new Vector3(
+                        position.X,
+                        bestSupportY,
+                        position.Z);
+
+                    SpawnImpactParticles(impactPosition, impactSpeed);
+                }
             }
             else
             {
@@ -824,15 +886,6 @@ namespace OGLonOTK.Core
                 _cargoSphere.Velocity = Vector3.Zero;
                 _cargoSphere.IsGrounded = false;
             }
-        }
-
-        private void UpdateAttachedCargo()
-        {
-            Vector3 grabPoint = GetDroneGrabPoint();
-
-            _cargoSphere.Position = grabPoint - new Vector3(0f, _cargoSphere.Radius, 0f);
-            _cargoSphere.Velocity = Vector3.Zero;
-            _cargoSphere.IsGrounded = false;
         }
 
         private Vector3 GetDroneGrabPoint()
@@ -953,7 +1006,7 @@ namespace OGLonOTK.Core
                 Size.Y, 0f,
                 -1f, 1f);
 
-            Matrix4 model = Matrix4.CreateTranslation(640f, 120f, 0f);
+            Matrix4 model = Matrix4.CreateTranslation(683f, 120f, 0f);
 
             _overlayShapeShader.Use();
             _overlayShapeShader.SetMatrix4("projection", projection);
@@ -1096,6 +1149,154 @@ namespace OGLonOTK.Core
                 return target;
 
             return current + MathF.Sign(target - current) * maxDelta;
+        }
+
+        private void SpawnImpactParticles(Vector3 impactPosition, float impactStrength)
+        {
+            int particleCount = 12;
+
+            for (int i = 0; i < particleCount; i++)
+            {
+                float angle = (float)(_random.NextDouble() * Math.PI * 2.0);
+                float horizontalSpeed = 0.8f + (float)_random.NextDouble() * 1.8f;
+                float verticalSpeed = 1.2f + (float)_random.NextDouble() * 1.6f;
+
+                Vector3 velocity = new Vector3(
+                    MathF.Cos(angle) * horizontalSpeed,
+                    verticalSpeed,
+                    MathF.Sin(angle) * horizontalSpeed);
+
+                var particle = new Particle(_cubeMesh, _shader)
+                {
+                    Position = impactPosition,
+                    Velocity = velocity,
+                    Scale = new Vector3(0.08f, 0.08f, 0.08f),
+                    Rotation = Vector3.Zero,
+                    Life = 0.4f + (float)_random.NextDouble() * 0.4f
+                };
+
+                _particles.Add(particle);
+            }
+        }
+
+        private void UpdateParticles(float dt)
+        {
+            for (int i = _particles.Count - 1; i >= 0; i--)
+            {
+                _particles[i].Update(dt);
+
+                if (!_particles[i].IsAlive)
+                {
+                    _particles.RemoveAt(i);
+                }
+            }
+        }
+
+        private void RenderParticles(Matrix4 view, Matrix4 projection)
+        {
+            foreach (var particle in _particles)
+            {
+                particle.Render(view, projection);
+            }
+        }
+
+        private void SetCursorCaptured(bool captured)
+        {
+            _cursorCaptured = captured;
+            CursorState = captured ? CursorState.Grabbed : CursorState.Normal;
+            _firstMouseMove = true;
+        }
+
+        private Vector2 GetMouseDelta()
+        {
+            var mouse = MouseState;
+
+            if (_firstMouseMove)
+            {
+                _lastMousePosition = mouse.Position;
+                _firstMouseMove = false;
+                return Vector2.Zero;
+            }
+
+            Vector2 delta = mouse.Position - _lastMousePosition;
+            _lastMousePosition = mouse.Position;
+            return delta;
+        }
+
+        private void SyncOrbitCameraFromCurrentPosition()
+        {
+            Vector3 offset = _drone.Position - _camera.Position;
+            _orbitDistance = offset.Length;
+
+            if (_orbitDistance > 0.001f)
+            {
+                offset = Vector3.Normalize(offset);
+                _orbitPitch = MathHelper.RadiansToDegrees(MathF.Asin(offset.Y));
+                _orbitYaw = MathHelper.RadiansToDegrees(MathF.Atan2(offset.X, offset.Z));
+            }
+        }
+
+        private void UpdateFollowCamera(float dt)
+        {
+            Vector3 cameraForward = _drone.GetForward();
+
+            float followDistance = 5.0f;
+            float followHeight = 2.0f;
+
+            Vector3 targetCameraPosition =
+                _drone.Position
+                - cameraForward * followDistance
+                + Vector3.UnitY * followHeight;
+
+            float followSpeed = 4.0f;
+            float t = MathF.Min(followSpeed * dt, 1.0f);
+
+            _camera.Position = Vector3.Lerp(_camera.Position, targetCameraPosition, t);
+        }
+
+        private void UpdateOrbitCamera()
+        {
+            Vector2 mouseDelta = GetMouseDelta();
+
+            _orbitYaw += mouseDelta.X * _mouseSensitivity;
+            _orbitPitch -= mouseDelta.Y * _mouseSensitivity;
+            _orbitPitch = MathHelper.Clamp(_orbitPitch, -80f, 80f);
+
+            float yawRad = MathHelper.DegreesToRadians(_orbitYaw);
+            float pitchRad = MathHelper.DegreesToRadians(_orbitPitch);
+
+            Vector3 offset;
+            offset.X = MathF.Cos(pitchRad) * MathF.Sin(yawRad);
+            offset.Y = MathF.Sin(pitchRad);
+            offset.Z = MathF.Cos(pitchRad) * MathF.Cos(yawRad);
+
+            offset = Vector3.Normalize(offset) * _orbitDistance;
+
+            _camera.Position = _drone.Position - offset;
+        }
+
+        private void UpdateFreeCamera(float dt, KeyboardState input)
+        {
+            Vector2 mouseDelta = GetMouseDelta();
+            _camera.AddRotation(mouseDelta.X, mouseDelta.Y);
+
+            if (input.IsKeyDown(Keys.W))
+                _camera.MoveForward(dt);
+
+            if (input.IsKeyDown(Keys.S))
+                _camera.MoveBackward(dt);
+
+            if (input.IsKeyDown(Keys.A))
+                _camera.MoveLeft(dt);
+
+            if (input.IsKeyDown(Keys.D))
+                _camera.MoveRight(dt);
+
+            if (input.IsKeyDown(Keys.Space))
+                _camera.Position += Vector3.UnitY * _camera.Speed * dt;
+
+            if (input.IsKeyDown(Keys.LeftShift))
+                _camera.Position -= Vector3.UnitY * _camera.Speed * dt;
         }
     }
 }
